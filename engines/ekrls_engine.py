@@ -32,17 +32,25 @@ class RBFKernel:
         self.sigma = sigma
 
     def __call__(self, x: np.ndarray, y: np.ndarray) -> float:
+        """Single kernel evaluation."""
         diff = x.flatten() - y.flatten()
         return float(np.exp(-np.dot(diff, diff) / (2 * self.sigma ** 2)))
 
+    def compute(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+        """Vectorized kernel evaluation between two sets of vectors."""
+        X = np.atleast_2d(X)
+        Y = np.atleast_2d(Y)
+        # Use squared distance identity: ||x-y||² = ||x||² + ||y||² - 2x·y
+        sx = np.einsum('ij,ij->i', X, X)
+        sy = np.einsum('ij,ij->i', Y, Y)
+        dist_sq = sx[:, np.newaxis] + sy[np.newaxis, :] - 2 * np.dot(X, Y.T)
+        return np.exp(-dist_sq / (2 * self.sigma ** 2))
+
     def gram_matrix(self, X: np.ndarray) -> np.ndarray:
         """Compute full Gram matrix K_{ij} = k(x_i, x_j)"""
-        n = len(X)
-        K = np.zeros((n, n))
-        for i in range(n):
-            for j in range(i, n):
-                K[i, j] = K[j, i] = self(X[i], X[j])
-        return K
+        # Vectorized implementation for speed boost (Bolt ⚡)
+        X_arr = np.array(X)
+        return self.compute(X_arr, X_arr)
 
 
 @dataclass
@@ -116,12 +124,13 @@ class SquareRootEKRLS:
         return R, x
 
     def _kernel_vector(self, x_new: np.ndarray) -> np.ndarray:
-        """Compute kernel vector k(x_new, x_i) for all dictionary entries."""
+        """Compute kernel vector k(x_new, x_i) for all dictionary entries (Vectorized)."""
         if not self._dict_X:
             return np.array([])
-        return np.array([self.kernel(x_new, xi) for xi in self._dict_X])
+        X_dict = np.array(self._dict_X)
+        return self.kernel.compute(x_new.reshape(1, -1), X_dict).flatten()
 
-    def predict(self, phi_new: np.ndarray) -> Tuple[float, float]:
+    def predict(self, phi_new: np.ndarray, k_vec: Optional[np.ndarray] = None) -> Tuple[float, float]:
         """
         Predict measurement y for new state phi_new.
         Returns: (prediction, uncertainty_estimate)
@@ -129,16 +138,22 @@ class SquareRootEKRLS:
         if self._alpha is None or len(self._dict_X) == 0:
             return 0.0, float('inf')
 
-        k_vec = self._kernel_vector(phi_new)
+        if k_vec is None:
+            k_vec = self._kernel_vector(phi_new)
+
         # Guard against size mismatch (alpha not yet extended)
         n = min(len(self._alpha), len(k_vec))
         y_pred = float(np.dot(self._alpha[:n], k_vec[:n]))
 
         # Uncertainty from RKHS norm
-        k_self = self.kernel(phi_new, phi_new)
-        if self._R_sqrt is not None and len(k_vec) == self._R_sqrt.shape[0]:
+        k_self = float(k_vec[-1]) if len(k_vec) > n else self.kernel(phi_new, phi_new)
+
+        # Use only matching part of k_vec for uncertainty if R_sqrt is older
+        k_vec_u = k_vec[:self._R_sqrt.shape[0]] if self._R_sqrt is not None else k_vec
+
+        if self._R_sqrt is not None and len(k_vec_u) == self._R_sqrt.shape[0]:
             try:
-                v = np.linalg.solve(self._R_sqrt.T, k_vec)
+                v = np.linalg.solve(self._R_sqrt.T, k_vec_u)
                 uncertainty = float(np.sqrt(max(0, k_self - np.dot(v, v))))
             except np.linalg.LinAlgError:
                 uncertainty = float(np.sqrt(k_self))
@@ -177,9 +192,10 @@ class SquareRootEKRLS:
             self.prediction_errors.append(y_n)
             return {"step": n, "d": d, "pred_error": y_n, "uncertainty": float(np.sqrt(k00))}
 
-        # --- Kernel vector for new point ---
-        k_vec = np.array([self.kernel(phi_n, xi) for xi in self._dict_X[:-1]])
-        k_self = self.kernel(phi_n, phi_n) + self.r_noise
+        # --- Kernel vector for new point (Optimized: reuse _kernel_vector results) ---
+        k_full = self._kernel_vector(phi_n)
+        k_vec = k_full[:-1]
+        k_self = k_full[-1] + self.r_noise
 
         # --- Extend R_sqrt ---
         R_old = self._R_sqrt
@@ -201,7 +217,7 @@ class SquareRootEKRLS:
         self._R_sqrt = R_new
 
         # --- Prediction error ---
-        y_pred, uncertainty = self.predict(phi_n)
+        y_pred, uncertainty = self.predict(phi_n, k_vec=k_full)
         # Re-compute before alpha update (using old alpha on new dict)
         if self._alpha is not None and len(self._alpha) < d:
             alpha_ext = np.append(self._alpha, 0.0)
