@@ -305,3 +305,42 @@ class FinancialQuantumAnalyzer:
             "battery_final": round(self.liquidity_battery.E_battery, 4),
             "collapse_events": self.ekrls.summary().get("collapse_events", 0),
         }
+
+import pandas as pd
+
+def load_kaggle_market_data(file_path: str, company: str = 'Tesla') -> dict:
+    """
+    Load and parse market data from Kaggle CSV.
+    file_path: path to synthetic_stock_data.csv
+    company: filter by company name
+    """
+    df = pd.read_csv(file_path)
+    df = df[df['Company'] == company].sort_values('Date')
+
+    if df.empty:
+        return generate_market_data(n=200)
+
+    prices = df['Close'].values
+    returns = np.diff(np.log(prices))
+
+    # Simple realized volatility (20-day window)
+    vol = np.array([
+        float(np.std(returns[max(0,i-20):i+1])) if i > 0 else 0.01
+        for i in range(len(returns))
+    ])
+
+    volume = df['Volume'].values
+
+    # Map Trend to numeric regimes (Stable=2, Bullish=0, Bearish=4)
+    trend_map = {'Stable': 2, 'Bullish': 0, 'Bearish': 4}
+    regimes = np.array([trend_map.get(t, 2) for t in df['Trend'].values])
+
+    return {
+        "prices": prices,
+        "returns": returns,
+        "realized_vol": vol,
+        "volume": volume,
+        "true_regimes": regimes,
+        "n": len(prices),
+        "source": f"Kaggle:{company}"
+    }
