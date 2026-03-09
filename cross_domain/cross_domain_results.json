@@ -1,0 +1,443 @@
+{
+  "finance": {
+    "periods_analyzed": 198,
+    "regime_distribution": {
+      "BULL_VOLATILE": 14,
+      "BEAR_SLOW": 1,
+      "CRASH": 105,
+      "BEAR_PANIC": 36,
+      "RANGE_LOW": 42
+    },
+    "anomaly_events": 46,
+    "mean_vol_forecast": 0.04225,
+    "mean_coherence": 0.603,
+    "signal_breakdown": {
+      "LONG": 7,
+      "SHORT": 111,
+      "FLAT": 80
+    },
+    "ekrls_rmse": 0.09299,
+    "battery_final": 0.0,
+    "collapse_events": 0
+  },
+  "genomics": {
+    "build": {
+      "variants_indexed": 50000,
+      "memory_kb": 89.947265625,
+      "bloom_equiv_kb": 117.005859375,
+      "memory_reduction_pct": 23.125845059842753,
+      "suffix_nodes": 1364
+    },
+    "test_queries": [
+      {
+        "in_database": false,
+        "predicted_class": "BENIGN",
+        "class_id": 0,
+        "confidence": 0.1419,
+        "uncertainty_bits": 2.991,
+        "uncertainty_reduction_pct": 0.3,
+        "full_distribution": {
+          "BENIGN": 0.1419,
+          "LIKELY_BENIGN": 0.1214,
+          "UNCERTAIN": 0.1256,
+          "LIKELY_PATHOGENIC": 0.1315,
+          "PATHOGENIC": 0.1161,
+          "DRUG_RESPONSE": 0.096,
+          "PROTECTIVE": 0.1325,
+          "SPLICE_VARIANT": 0.135
+        }
+      },
+      {
+        "in_database": false,
+        "predicted_class": "UNCERTAIN",
+        "class_id": 2,
+        "confidence": 0.144,
+        "uncertainty_bits": 2.99,
+        "uncertainty_reduction_pct": 0.3,
+        "full_distribution": {
+          "BENIGN": 0.0977,
+          "LIKELY_BENIGN": 0.1332,
+          "UNCERTAIN": 0.144,
+          "LIKELY_PATHOGENIC": 0.123,
+          "PATHOGENIC": 0.1407,
+          "DRUG_RESPONSE": 0.1208,
+          "PROTECTIVE": 0.1297,
+          "SPLICE_VARIANT": 0.1109
+        }
+      },
+      {
+        "in_database": false,
+        "predicted_class": "BENIGN",
+        "class_id": 0,
+        "confidence": 0.1517,
+        "uncertainty_bits": 2.992,
+        "uncertainty_reduction_pct": 0.3,
+        "full_distribution": {
+          "BENIGN": 0.1517,
+          "LIKELY_BENIGN": 0.1393,
+          "UNCERTAIN": 0.1256,
+          "LIKELY_PATHOGENIC": 0.1142,
+          "PATHOGENIC": 0.1162,
+          "DRUG_RESPONSE": 0.1149,
+          "PROTECTIVE": 0.127,
+          "SPLICE_VARIANT": 0.1111
+        }
+      }
+    ],
+    "novel_prediction": {
+      "novel_variant_class": "UNCERTAIN",
+      "confidence": 0.136,
+      "method": "suffix_backoff_smoothing",
+      "note": "Handles zero-shot variants via P(class|k-mer) recursive abstraction"
+    }
+  },
+  "climate": {
+    "n_steps": 300,
+    "anomalies_detected": 2,
+    "anomaly_events": [
+      {
+        "step": 3,
+        "coherence": 0.132,
+        "energy_imbalance": 2.519,
+        "temperature_anomaly": 0.052,
+        "type": "ANOMALY"
+      },
+      {
+        "step": 5,
+        "coherence": 0.152,
+        "energy_imbalance": 2.513,
+        "temperature_anomaly": -0.057,
+        "type": "ANOMALY"
+      }
+    ],
+    "tipping_point_detected": false,
+    "mean_coherence": 0.6049,
+    "energy_final": 2.7682,
+    "conservation_violations": 0,
+    "ekrls_rmse": 0.79441,
+    "stability_index": 0.6049
+  },
+  "drug_discovery": {
+    "build": {
+      "compounds_indexed": 30000,
+      "memory_kb": 38.548828125,
+      "bloom_equiv_kb": 52.65234375,
+      "memory_reduction_pct": 26.786111729356776,
+      "suffix_nodes": 7203,
+      "binding_energy_stored": 20.0
+    },
+    "activity_predictions": [
+      {
+        "name": "Drug-A (Lipinski-favorable)",
+        "rings": 2,
+        "hbd": 2,
+        "hba": 4,
+        "mw": 2,
+        "logp": 2,
+        "predicted_activity": "HIGHLY_ACTIVE",
+        "confidence": 0.1952,
+        "uncertainty_bits": 2.927,
+        "top_4_classes": [
+          [
+            "HIGHLY_ACTIVE",
+            0.1952
+          ],
+          [
+            "INACTIVE",
+            0.1887
+          ],
+          [
+            "WEAKLY_ACTIVE",
+            0.1379
+          ],
+          [
+            "POTENT",
+            0.1023
+          ]
+        ],
+        "lipinski_favorable": true
+      },
+      {
+        "name": "Drug-B (High mol. weight)",
+        "rings": 5,
+        "hbd": 4,
+        "hba": 7,
+        "mw": 4,
+        "logp": 4,
+        "predicted_activity": "POTENT",
+        "confidence": 0.2839,
+        "uncertainty_bits": 2.862,
+        "top_4_classes": [
+          [
+            "POTENT",
+            0.2839
+          ],
+          [
+            "INACTIVE",
+            0.1141
+          ],
+          [
+            "MODERATELY_ACTIVE",
+            0.1138
+          ],
+          [
+            "TOXIC",
+            0.1124
+          ]
+        ],
+        "lipinski_favorable": false
+      },
+      {
+        "name": "Drug-C (Lead-like)",
+        "rings": 1,
+        "hbd": 1,
+        "hba": 3,
+        "mw": 1,
+        "logp": 1,
+        "predicted_activity": "ACTIVE",
+        "confidence": 0.1962,
+        "uncertainty_bits": 2.938,
+        "top_4_classes": [
+          [
+            "ACTIVE",
+            0.1962
+          ],
+          [
+            "HIGHLY_ACTIVE",
+            0.1719
+          ],
+          [
+            "TOXIC",
+            0.1251
+          ],
+          [
+            "WEAKLY_ACTIVE",
+            0.1212
+          ]
+        ],
+        "lipinski_favorable": true
+      }
+    ],
+    "docking_validation": {
+      "model": "DockingModel_v1",
+      "q_score": 0.8250000000000001,
+      "q_std": 0.2253910742767698,
+      "q_confidence_interval": [
+        0.3832334944175313,
+        1.2667665055824688
+      ],
+      "accepted": false,
+      "threshold": 0.85,
+      "dimension_scores": {
+        "G": 0.88,
+        "C": 0.8,
+        "S": 0.85,
+        "A": 0.75,
+        "Co": 0.9,
+        "Ge": 0.7
+      },
+      "bayesian_weights": {
+        "G": 0.25,
+        "C": 0.2,
+        "S": 0.15,
+        "A": 0.15,
+        "Co": 0.15,
+        "Ge": 0.1
+      },
+      "bottleneck_dimension": "Ge",
+      "recommendation": "REJECT \u2014 improve Ge"
+    }
+  },
+  "nlp": {
+    "training": {
+      "training_pairs": 11277,
+      "suffix_nodes": 1975
+    },
+    "word_tagging": [
+      {
+        "word": "running",
+        "predicted_tag": "VERB",
+        "confidence": 0.9058,
+        "uncertainty_bits": 0.819,
+        "is_oov": true,
+        "top_3": [
+          [
+            "VERB",
+            0.9058
+          ],
+          [
+            "NOUN",
+            0.0063
+          ],
+          [
+            "ADJ",
+            0.0063
+          ]
+        ]
+      },
+      {
+        "word": "beautiful",
+        "predicted_tag": "ADJ",
+        "confidence": 0.8427,
+        "uncertainty_bits": 1.129,
+        "is_oov": true,
+        "top_3": [
+          [
+            "ADJ",
+            0.8427
+          ],
+          [
+            "PROPN",
+            0.0497
+          ],
+          [
+            "PART",
+            0.0356
+          ]
+        ]
+      },
+      {
+        "word": "quantum",
+        "predicted_tag": "PROPN",
+        "confidence": 0.3494,
+        "uncertainty_bits": 2.824,
+        "is_oov": true,
+        "top_3": [
+          [
+            "PROPN",
+            0.3494
+          ],
+          [
+            "PART",
+            0.3074
+          ],
+          [
+            "X",
+            0.0688
+          ]
+        ]
+      },
+      {
+        "word": "xkrtlmn",
+        "predicted_tag": "NOUN",
+        "confidence": 0.4818,
+        "uncertainty_bits": 2.75,
+        "is_oov": true,
+        "top_3": [
+          [
+            "NOUN",
+            0.4818
+          ],
+          [
+            "PROPN",
+            0.144
+          ],
+          [
+            "PART",
+            0.1037
+          ]
+        ]
+      },
+      {
+        "word": "quickly",
+        "predicted_tag": "ADV",
+        "confidence": 0.8566,
+        "uncertainty_bits": 1.154,
+        "is_oov": true,
+        "top_3": [
+          [
+            "ADV",
+            0.8566
+          ],
+          [
+            "NOUN",
+            0.0096
+          ],
+          [
+            "VERB",
+            0.0096
+          ]
+        ]
+      },
+      {
+        "word": "establishment",
+        "predicted_tag": "NOUN",
+        "confidence": 0.9284,
+        "uncertainty_bits": 0.652,
+        "is_oov": true,
+        "top_3": [
+          [
+            "NOUN",
+            0.9284
+          ],
+          [
+            "VERB",
+            0.0048
+          ],
+          [
+            "ADJ",
+            0.0048
+          ]
+        ]
+      },
+      {
+        "word": "antidisestablishmentarianism",
+        "predicted_tag": "PROPN",
+        "confidence": 0.3494,
+        "uncertainty_bits": 2.824,
+        "is_oov": true,
+        "top_3": [
+          [
+            "PROPN",
+            0.3494
+          ],
+          [
+            "PART",
+            0.3074
+          ],
+          [
+            "X",
+            0.0688
+          ]
+        ]
+      }
+    ],
+    "sentence_tagging": [
+      {
+        "word": "The",
+        "tag": "PRON",
+        "tag_id": 6
+      },
+      {
+        "word": "quantum",
+        "tag": "PREP",
+        "tag_id": 5
+      },
+      {
+        "word": "entanglement",
+        "tag": "PRON",
+        "tag_id": 6
+      },
+      {
+        "word": "phenomenon",
+        "tag": "PRON",
+        "tag_id": 6
+      },
+      {
+        "word": "enables",
+        "tag": "PRON",
+        "tag_id": 6
+      },
+      {
+        "word": "faster",
+        "tag": "INTJ",
+        "tag_id": 10
+      },
+      {
+        "word": "computation",
+        "tag": "INTJ",
+        "tag_id": 10
+      }
+    ]
+  }
+}
