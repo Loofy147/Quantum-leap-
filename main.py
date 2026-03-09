@@ -14,10 +14,12 @@ Quantum Spacetime Emergence System — المحرك التكاملي
 
 import numpy as np
 import json
+import os
+import pandas as pd
 from dataclasses import dataclass
 from typing import Optional
 
-import sys, os
+import sys
 sys.path.insert(0, os.path.dirname(__file__))
 
 from engines.ekrls_engine import EKRLSQuantumEngine, EKRLSConfig
@@ -27,7 +29,7 @@ from error_correction.suffix_smoothing import QuantumErrorCorrector, SuffixConfi
 from metacognition.metacognitive_layer import MetacognitiveLayer, MetacognitiveConfig
 
 # Layer 2: Cross-Domain Adapters
-from cross_domain.finance import FinancialQuantumAnalyzer, generate_market_data
+from cross_domain.finance import FinancialQuantumAnalyzer, generate_market_data, load_kaggle_market_data
 from cross_domain.domain_adapters import (
     GenomicsAdapter, ClimateAdapter, DrugDiscoveryAdapter, NLPAdapter
 )
@@ -77,7 +79,7 @@ class QuantumSpacetimeSystem:
         )
 
         self.battery = EntanglementBattery(
-            LieAlgebraConfig(algebra_dim=self.cfg.state_dim),
+            LieAlgebraConfig(battery_capacity=10.0, algebra_dim=self.cfg.state_dim),
             algebra_type='galilei',
         )
 
@@ -190,18 +192,21 @@ class QuantumSpacetimeSystem:
         return q_result
 
     def phase_discover(self) -> dict:
-        """Phase 6: DISCOVER — Cross-domain application of the emergent model."""
+        """Phase 6: DISCOVER — Applying emergent model to real Kaggle market data."""
         if self.cfg.verbose:
-            print("\n[Phase 6] DISCOVER — Applying emergent model to universal domains...")
+            print("\n[Phase 6] DISCOVER — Applying emergent model to Universal Kaggle Data...")
 
         results = {}
 
-        # 1. Finance
-        if self.cfg.verbose: print("  → Domain: Finance (Volatility tracking)")
+        # 1. Finance (Kaggle Stock Data)
+        if self.cfg.verbose: print("  → Domain: Finance (Kaggle: Tesla)")
+        kaggle_path = "./data/finance/synthetic_stock_data.csv"
+        mdata = load_kaggle_market_data(kaggle_path, company='Tesla')
+
         fin = FinancialQuantumAnalyzer(seed=self.cfg.seed)
-        mdata = generate_market_data(n=200, seed=self.cfg.seed)
         fin.analyze(mdata)
         results["finance"] = fin.performance_summary()
+        results["finance"]["source"] = mdata.get("source", "Synthetic")
 
         # 2. Genomics
         if self.cfg.verbose: print("  → Domain: Genomics (SNP indexing)")
@@ -287,6 +292,9 @@ class QuantumSpacetimeSystem:
 
 
 if __name__ == "__main__":
+    # Ensure data directory exists
+    os.makedirs("./data/finance", exist_ok=True)
+
     system = QuantumSpacetimeSystem(SystemConfig(
         n_simulation_steps=100,
         n_entanglement_pairs=5000,
