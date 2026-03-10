@@ -9,3 +9,7 @@
 ## 2026-03-09 - Comprehensive Vectorization of Lie Evolution
 **Learning:** The previous optimization was incomplete as the ODE solver and inner simulation loops still contained matrix-trace projections and manual summations. Fully vectorizing the Hamiltonian projection and generator summation using `np.einsum` and pre-calculated tensors achieved an order-of-magnitude performance gain in the evolution steps.
 **Action:** Profile not just initialization, but also step-wise evolution functions. Vectorize all basis projections and matrix summations.
+
+## 2026-03-10 - Integration of Real Kaggle Market Data
+**Learning:** Real-world financial datasets (Kaggle) vary significantly in schema compared to synthetic models. Standardizing OHLCV columns and calculating proxy regimes (Bullish/Bearish) from returns ensures the system's universal applicability without requiring manual labeling.
+**Action:** Always implement robust column normalization and proxy calculation when adapting to external data sources.
