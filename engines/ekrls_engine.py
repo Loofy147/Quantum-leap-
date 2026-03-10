@@ -52,7 +52,7 @@ class RBFKernel:
     def gram_matrix(self, X: np.ndarray, sigma: Optional[float] = None) -> np.ndarray:
         """Compute full Gram matrix K_{ij} = k(x_i, x_j)"""
         # Vectorized implementation for speed boost (Bolt ⚡)
-        X_arr = np.array(X)
+        X_arr = np.asarray(X)
         return self.compute(X_arr, X_arr, sigma=sigma)
 
 
@@ -126,12 +126,12 @@ class SquareRootEKRLS:
             x[i] = 0.0
         return R, x
 
-    def _get_adaptive_sigma(self) -> float:
+    def _get_adaptive_sigma(self, X_dict: Optional[np.ndarray] = None) -> float:
         """Silverman's Rule of Thumb proxy for bandwidth selection."""
         if not self.cfg.adaptive_bandwidth or len(self._dict_X) < 10:
             return self.cfg.kernel_sigma
 
-        X = np.array(self._dict_X)
+        X = X_dict if X_dict is not None else np.array(self._dict_X)
         # Multi-dimensional Silverman proxy: 1.06 * std * n^(-1/5)
         # We blend with base sigma for stability
         std = np.std(X, axis=0).mean() + 1e-8
@@ -142,11 +142,11 @@ class SquareRootEKRLS:
         sigma = 0.8 * self.cfg.kernel_sigma + 0.2 * silverman
         return float(np.clip(sigma, 0.1, 10.0))
 
-    def _kernel_vector(self, x_new: np.ndarray, sigma: Optional[float] = None) -> np.ndarray:
+    def _kernel_vector(self, x_new: np.ndarray, sigma: Optional[float] = None, X_dict: Optional[np.ndarray] = None) -> np.ndarray:
         """Compute kernel vector k(x_new, x_i) for all dictionary entries (Vectorized)."""
         if not self._dict_X:
             return np.array([])
-        X_dict = np.array(self._dict_X)
+        X_dict = X_dict if X_dict is not None else np.array(self._dict_X)
         return self.kernel.compute(x_new.reshape(1, -1), X_dict, sigma=sigma).flatten()
 
     def predict(self, phi_new: np.ndarray, k_vec: Optional[np.ndarray] = None) -> Tuple[float, float]:
@@ -201,7 +201,9 @@ class SquareRootEKRLS:
         self._dict_X.append(phi_n.copy())
         self._dict_y.append(y_n)
 
-        d = len(self._dict_X)
+        # Convert to array once per step (Bolt ⚡ Optimization)
+        X_dict = np.array(self._dict_X)
+        d = len(X_dict)
 
         # --- Initialize if first step ---
         if d == 1:
@@ -212,8 +214,9 @@ class SquareRootEKRLS:
             return {"step": n, "d": d, "pred_error": y_n, "uncertainty": float(np.sqrt(k00))}
 
         # --- Kernel vector for new point ---
-        current_sigma = self._get_adaptive_sigma()
-        k_full = self._kernel_vector(phi_n, sigma=current_sigma)
+        # Reuse X_dict array (Bolt ⚡ Optimization)
+        current_sigma = self._get_adaptive_sigma(X_dict=X_dict)
+        k_full = self._kernel_vector(phi_n, sigma=current_sigma, X_dict=X_dict)
         k_vec = k_full[:-1]
         k_self = k_full[-1] + self.r_noise
 
@@ -237,24 +240,14 @@ class SquareRootEKRLS:
         self._R_sqrt = R_new
 
         # --- Prediction error ---
+        # Reuse k_full from above (Bolt ⚡ Optimization)
         y_pred, uncertainty = self.predict(phi_n, k_vec=k_full)
-        # Re-compute before alpha update (using old alpha on new dict)
-        if self._alpha is not None and len(self._alpha) < d:
-            alpha_ext = np.append(self._alpha, 0.0)
-        else:
-            alpha_ext = self._alpha if self._alpha is not None else np.zeros(d)
-
-        k_full = self._kernel_vector(phi_n)
-        if len(k_full) == len(alpha_ext):
-            y_pred = float(np.dot(alpha_ext, k_full))
-        else:
-            y_pred = 0.0
-
         pred_error = y_n - y_pred
         self.prediction_errors.append(pred_error)
 
         # --- Update alpha via RKHS weight update ---
-        K = self.kernel.gram_matrix(self._dict_X, sigma=current_sigma)
+        # Reuse X_dict array (Bolt ⚡ Optimization)
+        K = self.kernel.gram_matrix(X_dict, sigma=current_sigma)
         K += self.r_noise * np.eye(d)
         try:
             self._alpha = np.linalg.solve(K, np.array(self._dict_y))

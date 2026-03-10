@@ -21,3 +21,7 @@
 ## 2026-03-10 - Comprehensive Documentation & RCF Transparency
 **Learning:** Maintaining separate documentation for Architecture, Current State (Benchmarking), and Roadmap is critical for complex systems like RCF. It allows for clear distinction between theoretical design and empirical validation (Q-Scores).
 **Action:** Always include a `docs/` directory with a `CURRENT_STATE.md` that tracks latest validation results.
+
+## 2026-03-10 - EKRLS Dictionary Conversion Bottleneck
+**Learning:** In the `SquareRootEKRLS` engine, the internal dictionary `_dict_X` (a list of numpy arrays) was being converted to a full numpy array multiple times per update step (for sigma adaptation, kernel vector computation, and Gram matrix calculation). This creates significant overhead as the window size grows.
+**Action:** Convert the dictionary to an array once per step and pass it down to helper methods to eliminate redundant memory allocations and conversions.
