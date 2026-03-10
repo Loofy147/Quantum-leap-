@@ -120,6 +120,7 @@ class LieAlgebra:
         self.n = n
         self.generators = self._build_generators()
         self.structure_constants = self._compute_structure_constants()
+        self._ad_cache = {}  # Cache for adjoint representations (Bolt ⚡)
 
     def _build_generators(self) -> list[np.ndarray]:
         """Build basis generators for the selected algebra."""
@@ -164,20 +165,27 @@ class LieAlgebra:
     def _compute_structure_constants(self) -> np.ndarray:
         """
         Compute structure constants f^k_{ij} from [X_i, X_j] = f^k_{ij} X_k.
-        Uses matrix commutators: [A,B] = AB - BA
+        Uses matrix commutators: [A,B] = AB - BA (Bolt ⚡ Optimized)
         """
         d = len(self.generators)
         f = np.zeros((d, d, d), dtype=complex)
 
+        # Pre-calculate flattened generators and their norms for faster projection
+        # Tr(A† B) = sum(A.conj() * B)
+        gens_flat = np.array([X.flatten() for X in self.generators])
+        gens_conj_flat = gens_flat.conj()
+        norms = np.array([np.real(np.dot(gc, gf)) for gc, gf in zip(gens_conj_flat, gens_flat)])
+
         for i, Xi in enumerate(self.generators):
             for j, Xj in enumerate(self.generators):
                 comm = Xi @ Xj - Xj @ Xi
-                # Project onto generator basis
-                for k, Xk in enumerate(self.generators):
-                    # f^k_{ij} = Tr(Xk† · [Xi,Xj]) / Tr(Xk† · Xk)
-                    denom = np.trace(Xk.conj().T @ Xk)
-                    if abs(denom) > 1e-12:
-                        f[k, i, j] = np.trace(Xk.conj().T @ comm) / denom
+                comm_flat = comm.flatten()
+
+                # Vectorized projection across all k
+                projections = np.dot(gens_conj_flat, comm_flat)
+                for k in range(d):
+                    if abs(norms[k]) > 1e-12:
+                        f[k, i, j] = projections[k] / norms[k]
 
         return f
 
@@ -188,7 +196,9 @@ class LieAlgebra:
 
     def adjoint_representation(self, i: int) -> np.ndarray:
         """Adjoint rep matrix: (ad X_i)^k_j = f^k_{ij}"""
-        return self.structure_constants[:, i, :]
+        if i not in self._ad_cache:
+            self._ad_cache[i] = self.structure_constants[:, i, :]
+        return self._ad_cache[i]
 
 
 class EntanglementBattery:
@@ -235,15 +245,15 @@ class EntanglementBattery:
         # A_0 = Identity
         coeffs = [np.eye(d, dtype=complex)]
 
-        # A_n = (1/n!) Σ_{i} X_i (recursive Lie series)
+        # A_n = (1/n!) Σ_{i} X_i (recursive Lie series) (Bolt ⚡ Vectorized)
         current = np.eye(d, dtype=complex)
+
+        # Pre-calculate Σ g_i * ad_Xi (this is constant for all n, except for the 1/n factor)
+        # Σ g_i * ad_Xi = ad_g
+        ad_g = np.einsum('i,kij->kj', self.g, self.algebra.structure_constants)
+
         for n in range(1, N + 1):
-            # Sum contributions from all generators weighted by g_i
-            term = np.zeros((d, d), dtype=complex)
-            for i, Xi in enumerate(Xgens):
-                # Use commutator structure
-                ad_Xi = self.algebra.adjoint_representation(i)
-                term += self.g[i] * ad_Xi / n
+            term = ad_g / n
             current = current @ term
             coeffs.append(current.copy())
 
