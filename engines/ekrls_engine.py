@@ -241,6 +241,12 @@ class SquareRootEKRLS:
         except np.linalg.LinAlgError:
             self._alpha = np.linalg.lstsq(K, np.array(self._dict_y), rcond=None)[0]
 
+        # Compute eigenvalues for spectral monitoring
+        try:
+            eigenvalues = np.linalg.eigvalsh(K)
+        except:
+            eigenvalues = np.zeros(d)
+
         return {
             "step": n,
             "d": d,
@@ -248,6 +254,7 @@ class SquareRootEKRLS:
             "y_true": float(y_n),
             "pred_error": float(pred_error),
             "uncertainty": float(uncertainty),
+            "eigenvalues": eigenvalues,
         }
 
 

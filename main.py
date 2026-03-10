@@ -38,9 +38,9 @@ from cross_domain.domain_adapters import (
 @dataclass
 class SystemConfig:
     """Master configuration for the quantum spacetime system."""
-    n_simulation_steps: int = 100
+    n_simulation_steps: int = 200
     n_entanglement_pairs: int = 10_000
-    state_dim: int = 4
+    state_dim: int = 8
     seed: int = 42
     verbose: bool = True
 
@@ -80,7 +80,7 @@ class QuantumSpacetimeSystem:
 
         self.battery = EntanglementBattery(
             LieAlgebraConfig(battery_capacity=10.0, algebra_dim=self.cfg.state_dim),
-            algebra_type='galilei',
+            algebra_type='su_n',
         )
 
         self.qec = QuantumErrorCorrector(SuffixConfig(

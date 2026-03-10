@@ -63,6 +63,38 @@ class LieGenerator:
             X[i, i] = 1j * (i - n / 2)
         return X
 
+
+    @staticmethod
+    def su_n(n: int = 2) -> list[np.ndarray]:
+        """Generalized Gell-Mann matrices for su(n) basis. All anti-Hermitian."""
+        gens = []
+        # 1. Antisymmetric real: n(n-1)/2 generators
+        for i in range(n):
+            for j in range(i + 1, n):
+                X = np.zeros((n, n), dtype=complex)
+                X[i, j] = 1.0
+                X[j, i] = -1.0
+                gens.append(X)
+
+        # 2. Symmetric imaginary: n(n-1)/2 generators
+        for i in range(n):
+            for j in range(i + 1, n):
+                X = np.zeros((n, n), dtype=complex)
+                X[i, j] = 1j
+                X[j, i] = 1j
+                gens.append(X)
+
+        # 3. Traceless diagonal imaginary: n-1 generators
+        for k in range(1, n):
+            X = np.zeros((n, n), dtype=complex)
+            norm = np.sqrt(2.0 / (k * (k + 1)))
+            for m in range(k):
+                X[m, m] = 1j * norm
+            X[k, k] = -1j * k * norm
+            gens.append(X)
+
+        return gens
+
     @staticmethod
     def tensor_generator(n: int = 2, antisym: bool = True) -> np.ndarray:
         """Anti-symmetric tensor generator Z_μν — Maxwell algebra."""
@@ -81,7 +113,7 @@ class LieAlgebra:
     Supports Galilei, Poincaré, Schrödinger, and String-Galilei algebras.
     """
 
-    ALGEBRA_TYPES = ['galilei', 'poincare', 'schrodinger', 'string_galilei']
+    ALGEBRA_TYPES = ['galilei', 'poincare', 'schrodinger', 'string_galilei', 'su_n']
 
     def __init__(self, algebra_type: str = 'galilei', n: int = 2):
         self.algebra_type = algebra_type
@@ -124,6 +156,8 @@ class LieAlgebra:
                 g.tensor_generator(n, False),  # Non-central extension
             ]
             return base
+        elif self.algebra_type == 'su_n':
+            return g.su_n(n)
         else:
             raise ValueError(f"Unknown algebra: {self.algebra_type}")
 
@@ -349,18 +383,22 @@ class EntanglementBattery:
 
         for step in range(n_steps):
             t = step * dt
-            # Default: oscillating Hamiltonian (entanglement pumping)
-            if H_func is None:
-                omega = 2 * np.pi * 0.5  # 0.5 Hz oscillation
-                H = np.zeros((self.cfg.algebra_dim, self.cfg.algebra_dim), dtype=complex)
+            # Wei-Norman ODE step (RK4)
+            def get_H(time):
+                if H_func is not None:
+                    return H_func(time)
+                omega = 2 * np.pi * 0.5
+                H_t = np.zeros((self.cfg.algebra_dim, self.cfg.algebra_dim), dtype=complex)
                 for i, Xi in enumerate(self.algebra.generators):
-                    H += np.sin(omega * t + i * np.pi / self.d) * Xi
-            else:
-                H = H_func(t)
+                    H_t += np.sin(omega * time + i * np.pi / self.d) * Xi
+                return H_t
 
-            # Wei-Norman ODE step (Euler)
-            dg = self._wei_norman_ode(self.g, H)
-            self.g = self.g + dt * dg
+            k1 = self._wei_norman_ode(self.g, get_H(t))
+            k2 = self._wei_norman_ode(self.g + 0.5 * dt * k1, get_H(t + 0.5 * dt))
+            k3 = self._wei_norman_ode(self.g + 0.5 * dt * k2, get_H(t + 0.5 * dt))
+            k4 = self._wei_norman_ode(self.g + dt * k3, get_H(t + dt))
+
+            self.g = self.g + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
             self.g = np.clip(self.g, -10, 10)
 
             # Compute evolution operator
