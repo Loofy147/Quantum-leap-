@@ -25,3 +25,11 @@
 ## 2026-03-10 - EKRLS Dictionary Conversion Bottleneck
 **Learning:** In the `SquareRootEKRLS` engine, the internal dictionary `_dict_X` (a list of numpy arrays) was being converted to a full numpy array multiple times per update step (for sigma adaptation, kernel vector computation, and Gram matrix calculation). This creates significant overhead as the window size grows.
 **Action:** Convert the dictionary to an array once per step and pass it down to helper methods to eliminate redundant memory allocations and conversions.
+
+## 2026-03-10 - Suffix Tree Traversal Bottleneck (QEC)
+**Learning:** In the `QuantumSuffixSmoother`, `predict_distribution` was calling `predict_probability` for each of the 16 QEC codes, resulting in 16 separate (and redundant) traversals of the suffix tree per step.
+**Action:** Vectorize `predict_distribution` to traverse the tree once and update the entire probability distribution using NumPy arrays. This provides an order-of-magnitude speedup in QEC-intensive simulations.
+
+## 2026-03-10 - Per-Step Feature Engineering Overhead
+**Learning:** The finance domain analyzer was calling `encode_market_state` at every step of the simulation loop, involving redundant `pandas` slices and `numpy` calculations on overlapping windows.
+**Action:** Implement `get_batch_market_features` to pre-calculate all state vectors (Φ) using vectorized `pandas` rolling operations before entering the simulation loop.
