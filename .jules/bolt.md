@@ -33,3 +33,11 @@
 ## 2026-03-10 - Per-Step Feature Engineering Overhead
 **Learning:** The finance domain analyzer was calling `encode_market_state` at every step of the simulation loop, involving redundant `pandas` slices and `numpy` calculations on overlapping windows.
 **Action:** Implement `get_batch_market_features` to pre-calculate all state vectors (Φ) using vectorized `pandas` rolling operations before entering the simulation loop.
+
+## 2026-03-10 - Expensive Eigenvalue Monitoring
+**Learning:** Computing eigenvalues ((d^3)$) at every step of the EKRLS update for spectral monitoring was a major hidden bottleneck, especially for higher state dimensions.
+**Action:** Introduced `spectral_monitoring_interval` in `EKRLSConfig` to perform spectral analysis periodically (e.g., every 5 steps), significantly reducing computational load without losing oversight of system stability.
+
+## 2026-03-10 - Suffix Tree Batch Training
+**Learning:** Training the Suffix Tree node-by-node in a loop was inefficient due to repeated dictionary lookups and atomic node updates.
+**Action:** Refactored `QuantumSuffixSmoother.train` to pre-aggregate all suffix counts in the batch using a local dictionary before performing a single-pass update on the tree nodes.

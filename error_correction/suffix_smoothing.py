@@ -84,21 +84,30 @@ class QuantumSuffixSmoother:
 
     def train(self, sequences: list[tuple[tuple, int]]) -> dict:
         """
-        Train on (quantum_state_sequence, qec_code) pairs.
-        quantum_state_sequence: tuple of discretized state labels
-        qec_code: integer class label for the correction applied
+        Train on (quantum_state_sequence, qec_code) pairs (Bolt ⚡ Optimized).
+        Pre-aggregates suffix counts from the batch to minimize tree lookups.
         """
+        batch_counts = defaultdict(lambda: np.zeros(self.n_codes, dtype=float))
+        root_counts = np.zeros(self.n_codes, dtype=float)
+
         for state_seq, code in sequences:
             n = len(state_seq)
-            # Update all suffix nodes
+            # Pre-calculate counts for all suffixes in the batch
             for length in range(1, min(n + 1, self.cfg.max_suffix_length + 1)):
                 suffix = state_seq[max(0, n - length):]
-                node = self._get_or_create_node(suffix)
-                node.observe(code)
+                batch_counts[suffix][code] += 1.0
 
-            # Update root (empty suffix)
-            self.root.observe(code)
+            root_counts[code] += 1.0
             self.training_samples += 1
+
+        # Batch update the tree nodes
+        for suffix, counts in batch_counts.items():
+            node = self._get_or_create_node(suffix)
+            node.counts += counts
+            node.total += counts.sum()
+
+        self.root.counts += root_counts
+        self.root.total += root_counts.sum()
 
         return {
             "samples_trained": len(sequences),

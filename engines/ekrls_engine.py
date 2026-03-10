@@ -23,7 +23,8 @@ class EKRLSConfig:
     forgetting_factor: float = 0.99  # λ in recursive update (memory)
     process_noise: float = 0.01  # σ_v²
     measurement_noise: float = 0.05  # σ_w²
-    window_size: int = 50        # Sliding window for RKHS dict
+    window_size: int = 50
+    spectral_monitoring_interval: int = 5        # Sliding window for RKHS dict
 
 
 class RBFKernel:
@@ -254,11 +255,14 @@ class SquareRootEKRLS:
         except np.linalg.LinAlgError:
             self._alpha = np.linalg.lstsq(K, np.array(self._dict_y), rcond=None)[0]
 
-        # Compute eigenvalues for spectral monitoring
-        try:
-            eigenvalues = np.linalg.eigvalsh(K)
-        except:
-            eigenvalues = np.zeros(d)
+        # Compute eigenvalues for spectral monitoring periodically (Bolt ⚡ Optimization)
+        if self.update_count % self.cfg.spectral_monitoring_interval == 0:
+            try:
+                eigenvalues = np.linalg.eigvalsh(K)
+            except:
+                eigenvalues = np.zeros(d)
+        else:
+            eigenvalues = None
 
         return {
             "step": n,

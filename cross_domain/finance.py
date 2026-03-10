@@ -232,6 +232,7 @@ class FinancialQuantumAnalyzer:
             coherence_collapse_threshold=0.15,
         ))
         self.results: list[dict] = []
+        self._regime_initialized = False
 
     def _vol_from_coherence(self, coherence: float, base_vol: float) -> float:
         """
@@ -252,7 +253,10 @@ class FinancialQuantumAnalyzer:
         n = market_data["n"]
 
         # Initialize regime detector
-        self.regime_detector.initialize(n_training=400, seed=self.seed)
+        # Initialize regime detector once (Bolt ⚡ Optimization)
+        if not self._regime_initialized:
+            self.regime_detector.initialize(n_training=400, seed=self.seed)
+            self._regime_initialized = True
 
         # Batch compute all features (Bolt ⚡ Optimization)
         all_phis = get_batch_market_features(prices, returns, vol, volume)
