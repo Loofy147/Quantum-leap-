@@ -170,11 +170,14 @@ class LieAlgebra:
         d = len(self.generators)
         f = np.zeros((d, d, d), dtype=complex)
 
-        # Pre-calculate flattened generators and their norms for faster projection
-        # Tr(A† B) = sum(A.conj() * B)
-        gens_flat = np.array([X.flatten() for X in self.generators])
-        gens_conj_flat = gens_flat.conj()
-        norms = np.array([np.real(np.dot(gc, gf)) for gc, gf in zip(gens_conj_flat, gens_flat)])
+        # Pre-calculate tensors for faster projection (Bolt ⚡ Robust)
+        self.gens_3d = np.array(self.generators)
+        self.gens_flat = np.array([X.flatten() for X in self.generators])
+        self.gens_conj_flat = self.gens_flat.conj()
+        self.norms = np.array([np.real(np.dot(gc, gf)) for gc, gf in zip(self.gens_conj_flat, self.gens_flat)])
+
+        gens_conj_flat = self.gens_conj_flat
+        norms = self.norms
 
         for i, Xi in enumerate(self.generators):
             for j, Xj in enumerate(self.generators):
@@ -281,22 +284,20 @@ class EntanglementBattery:
         d = self.d
         dg = np.zeros(d)
 
-        # Compute exp(ad g) matrix
-        ad_g = np.zeros((d, d), dtype=complex)
-        for i in range(d):
-            ad_g += g[i] * self.algebra.adjoint_representation(i)
+        # Compute exp(ad g) matrix (Bolt ⚡ Vectorized)
+        ad_g = np.einsum('i,kij->kj', g, self.algebra.structure_constants)
 
         try:
             exp_ad_g = scipy.linalg.expm(ad_g)
         except Exception:
             exp_ad_g = np.eye(d, dtype=complex)
 
-        # Project Hamiltonian onto generators
+        # Project Hamiltonian onto generators (Bolt ⚡ Vectorized)
+        # h_i = Tr(X_i† H) / norms_i
+        h_projections = np.dot(self.algebra.gens_conj_flat, H.flatten())
         h = np.zeros(d, dtype=complex)
-        for i, Xi in enumerate(self.algebra.generators):
-            denom = np.trace(Xi.conj().T @ Xi)
-            if abs(denom) > 1e-12:
-                h[i] = np.trace(Xi.conj().T @ H) / denom
+        mask = np.abs(self.algebra.norms) > 1e-12
+        h[mask] = h_projections[mask] / self.algebra.norms[mask]
 
         # dg = Re(exp_ad_g · h) (real part for physical g)
         dg = np.real(exp_ad_g @ h)
@@ -398,10 +399,9 @@ class EntanglementBattery:
                 if H_func is not None:
                     return H_func(time)
                 omega = 2 * np.pi * 0.5
-                H_t = np.zeros((self.cfg.algebra_dim, self.cfg.algebra_dim), dtype=complex)
-                for i, Xi in enumerate(self.algebra.generators):
-                    H_t += np.sin(omega * time + i * np.pi / self.d) * Xi
-                return H_t
+                # Vectorized generator summation (Bolt ⚡)
+                phases = np.sin(omega * time + np.arange(self.d) * np.pi / self.d)
+                return np.einsum('i,ijk->jk', phases, self.algebra.gens_3d)
 
             k1 = self._wei_norman_ode(self.g, get_H(t))
             k2 = self._wei_norman_ode(self.g + 0.5 * dt * k1, get_H(t + 0.5 * dt))
@@ -415,9 +415,11 @@ class EntanglementBattery:
             U = self.evolution_operator(t + dt)
             U_total = U @ U_total
 
-            # Extract coupling strength from power series
-            series = self.formal_power_series(epsilon=self.cfg.coupling_alpha)
-            coupling_strength = float(np.abs(series[1]).mean())
+            # Extract coupling strength directly (Bolt ⚡ Optimized)
+            # A_1 = epsilon * ad_g / 1! (from formal_power_series logic)
+            ad_g_evolve = np.einsum('i,kij->kj', self.g, self.algebra.structure_constants)
+            A_1 = self.cfg.coupling_alpha * ad_g_evolve
+            coupling_strength = float(np.abs(A_1).mean())
 
             results.append({
                 "t": t,
