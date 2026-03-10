@@ -17,3 +17,7 @@
 ## 2026-03-10 - Adaptive Kernel Bandwidth & Surprise Detection
 **Learning:** Fixed kernel bandwidth fails in non-stationary environments (like stock markets). Silverman's Rule of Thumb with a stability blend (e.g., 80/20) provides the responsiveness of adaptive methods without the instability of aggressive variance shifts. Surprise metrics (KL-Divergence of spectral distributions) can predict regime shifts before error rates spike.
 **Action:** Use adaptive kernels for time-series forecasting in RKHS. Monitor the Gram matrix spectrum for "Surprise" to improve system-level metacognition.
+
+## 2026-03-10 - Comprehensive Documentation & RCF Transparency
+**Learning:** Maintaining separate documentation for Architecture, Current State (Benchmarking), and Roadmap is critical for complex systems like RCF. It allows for clear distinction between theoretical design and empirical validation (Q-Scores).
+**Action:** Always include a `docs/` directory with a `CURRENT_STATE.md` that tracks latest validation results.
