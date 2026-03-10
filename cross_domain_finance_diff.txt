@@ -1,0 +1,92 @@
+<<<<<<< SEARCH
+def load_kaggle_market_data(file_path: str, company: str = 'Tesla') -> dict:
+    """
+    Load and parse market data from Kaggle CSV.
+    file_path: path to synthetic_stock_data.csv
+    company: filter by company name
+    """
+    df = pd.read_csv(file_path)
+    df = df[df['Company'] == company].sort_values('Date')
+
+    if df.empty:
+        return generate_market_data(n=200)
+
+    prices = df['Close'].values
+    returns = np.diff(np.log(prices))
+
+    # Simple realized volatility (20-day window)
+    vol = np.array([
+        float(np.std(returns[max(0,i-20):i+1])) if i > 0 else 0.01
+        for i in range(len(returns))
+    ])
+
+    volume = df['Volume'].values
+
+    # Map Trend to numeric regimes (Stable=2, Bullish=0, Bearish=4)
+    trend_map = {'Stable': 2, 'Bullish': 0, 'Bearish': 4}
+    regimes = np.array([trend_map.get(t, 2) for t in df['Trend'].values])
+
+    return {
+        "prices": prices,
+        "returns": returns,
+        "realized_vol": vol,
+        "volume": volume,
+        "true_regimes": regimes,
+        "n": len(prices),
+        "source": f"Kaggle:{company}"
+    }
+=======
+def load_kaggle_market_data(file_path: str, company: str = 'Tesla') -> dict:
+    """
+    Load and parse market data from Kaggle CSV.
+    Supports both synthetic format and standard OHLCV Kaggle datasets.
+    """
+    df = pd.read_csv(file_path)
+
+    # Standardize column names (handle case sensitivity)
+    df.columns = [c.strip().capitalize() if c.lower() in ['date', 'open', 'high', 'low', 'close', 'volume'] else c for c in df.columns]
+
+    # Filter by company if column exists
+    if 'Company' in df.columns:
+        df = df[df['Company'] == company]
+
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'])
+        df = df.sort_values('Date')
+
+    if df.empty:
+        return generate_market_data(n=200)
+
+    prices = df['Close'].values
+    returns = np.diff(np.log(prices))
+
+    # Simple realized volatility (20-day window)
+    vol = np.array([
+        float(np.std(returns[max(0,i-20):i+1])) if i > 0 else 0.01
+        for i in range(len(returns))
+    ])
+
+    volume = df['Volume'].values if 'Volume' in df.columns else np.ones(len(prices))
+
+    # Map Trend to numeric regimes
+    if 'Trend' in df.columns:
+        trend_map = {'Stable': 2, 'Bullish': 0, 'Bearish': 4}
+        regimes = np.array([trend_map.get(t, 2) for t in df['Trend'].values])
+    else:
+        # Calculate proxy regimes based on 5-day return
+        regimes = np.full(len(prices), 2, dtype=int) # Default to Stable
+        for i in range(6, len(prices)):
+            window_ret = float(np.sum(returns[i-6:i-1]))
+            if window_ret > 0.02: regimes[i] = 0 # Bullish
+            elif window_ret < -0.02: regimes[i] = 4 # Bearish
+
+    return {
+        "prices": prices,
+        "returns": returns,
+        "realized_vol": vol,
+        "volume": volume,
+        "true_regimes": regimes,
+        "n": len(prices),
+        "source": f"Kaggle:{company}"
+    }
+>>>>>>> REPLACE

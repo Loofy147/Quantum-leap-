@@ -1,0 +1,29 @@
+<<<<<<< SEARCH
+    def _get_adaptive_sigma(self) -> float:
+        """Silverman's Rule of Thumb proxy for bandwidth selection."""
+        if not self.cfg.adaptive_bandwidth or len(self._dict_X) < 5:
+            return self.cfg.kernel_sigma
+
+        X = np.array(self._dict_X)
+        # Multi-dimensional Silverman proxy: 1.06 * std * n^(-1/5)
+        std = np.std(X, axis=0).mean() + 1e-8
+        n = len(X)
+        sigma = 1.06 * std * (n ** -0.2)
+        return float(np.clip(sigma, 0.05, 5.0))
+=======
+    def _get_adaptive_sigma(self) -> float:
+        """Silverman's Rule of Thumb proxy for bandwidth selection."""
+        if not self.cfg.adaptive_bandwidth or len(self._dict_X) < 10:
+            return self.cfg.kernel_sigma
+
+        X = np.array(self._dict_X)
+        # Multi-dimensional Silverman proxy: 1.06 * std * n^(-1/5)
+        # We blend with base sigma for stability
+        std = np.std(X, axis=0).mean() + 1e-8
+        n = len(X)
+        silverman = 1.06 * std * (n ** -0.2)
+
+        # Stability blend: 50% fixed, 50% adaptive
+        sigma = 0.5 * self.cfg.kernel_sigma + 0.5 * silverman
+        return float(np.clip(sigma, 0.1, 10.0))
+>>>>>>> REPLACE

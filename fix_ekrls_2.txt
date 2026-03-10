@@ -1,0 +1,9 @@
+<<<<<<< SEARCH
+        # Stability blend: 50% fixed, 50% adaptive
+        sigma = 0.5 * self.cfg.kernel_sigma + 0.5 * silverman
+        return float(np.clip(sigma, 0.1, 10.0))
+=======
+        # Stability blend: 80% fixed, 20% adaptive to avoid aggressive variance shifts
+        sigma = 0.8 * self.cfg.kernel_sigma + 0.2 * silverman
+        return float(np.clip(sigma, 0.1, 10.0))
+>>>>>>> REPLACE

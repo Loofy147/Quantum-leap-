@@ -1,0 +1,105 @@
+<<<<<<< SEARCH
+def encode_market_state(prices: np.ndarray, returns: np.ndarray,
+                         vol: np.ndarray, volume: np.ndarray,
+                         i: int, lookback: int = 5) -> np.ndarray:
+    """
+    Encode market observation into 4D quantum-style state vector Φ.
+
+    Φ = [normalized_price_momentum, vol_z_score, volume_z_score, trend_strength]
+    """
+    if i < lookback:
+        return np.zeros(4)
+
+    # Price momentum (normalized)
+    momentum = float(np.sum(returns[max(0,i-lookback):i])) / (lookback * 0.01 + 1e-8)
+    momentum = np.clip(momentum, -5, 5) / 5.0
+
+    # Volatility z-score
+    vol_mean = float(np.mean(vol[max(0,i-lookback):i]))
+    vol_std = float(np.std(vol[max(0,i-lookback):i])) + 1e-8
+    vol_z = np.clip((vol[i-1] - vol_mean) / vol_std, -3, 3) / 3.0
+
+    # Volume z-score
+    vol_m = float(np.mean(volume[max(0,i-lookback):i]))
+    vol_s = float(np.std(volume[max(0,i-lookback):i])) + 1e-8
+    vol_z2 = np.clip((volume[i] - vol_m) / vol_s, -3, 3) / 3.0
+
+    # Trend strength (R² of price over window)
+    window_prices = prices[max(0,i-lookback):i]
+    if len(window_prices) > 2:
+        x = np.arange(len(window_prices), dtype=float)
+        x -= x.mean()
+        y = window_prices - window_prices.mean()
+        r2 = float((np.dot(x,y)**2) / (np.dot(x,x)*np.dot(y,y) + 1e-12))
+    else:
+        r2 = 0.0
+
+    return np.array([momentum, vol_z, vol_z2, r2])
+=======
+def encode_market_state(prices: np.ndarray, returns: np.ndarray,
+                         vol: np.ndarray, volume: np.ndarray,
+                         i: int, lookback: int = 14) -> np.ndarray:
+    """
+    Encode market observation into 6D quantum-style state vector Φ.
+
+    Φ = [momentum, vol_z, vol_z2, trend, RSI, volatility_clustering]
+    """
+    if i < lookback:
+        return np.zeros(6)
+
+    # Price momentum (normalized)
+    momentum = float(np.sum(returns[max(0,i-5):i])) / (5 * 0.01 + 1e-8)
+    momentum = np.clip(momentum, -5, 5) / 5.0
+
+    # Volatility z-score
+    vol_mean = float(np.mean(vol[max(0,i-lookback):i]))
+    vol_std = float(np.std(vol[max(0,i-lookback):i])) + 1e-8
+    vol_z = np.clip((vol[i-1] - vol_mean) / vol_std, -3, 3) / 3.0
+
+    # Volume z-score
+    vol_m = float(np.mean(volume[max(0,i-lookback):i]))
+    vol_s = float(np.std(volume[max(0,i-lookback):i])) + 1e-8
+    vol_z2 = np.clip((volume[i] - vol_m) / vol_s, -3, 3) / 3.0
+
+    # Trend strength (R² of price over window)
+    window_prices = prices[max(0,i-lookback):i]
+    if len(window_prices) > 2:
+        x = np.arange(len(window_prices), dtype=float)
+        x -= x.mean()
+        y = window_prices - window_prices.mean()
+        r2 = float((np.dot(x,y)**2) / (np.dot(x,x)*np.dot(y,y) + 1e-12))
+    else:
+        r2 = 0.0
+
+    # RSI (Relative Strength Index) proxy
+    diffs = returns[max(0,i-lookback):i]
+    ups = diffs[diffs > 0]
+    downs = -diffs[diffs < 0]
+    avg_up = np.mean(ups) if len(ups) > 0 else 0
+    avg_down = np.mean(downs) if len(downs) > 0 else 1e-8
+    rs = avg_up / avg_down
+    rsi = 100 - (100 / (1 + rs))
+    rsi_norm = (rsi - 50) / 50.0 # Normalized [-1, 1]
+
+    # Volatility clustering (Autocorrelation of returns magnitude)
+    abs_ret = np.abs(returns[max(0,i-lookback):i])
+    if len(abs_ret) > 5:
+        corr = float(np.corrcoef(abs_ret[1:], abs_ret[:-1])[0,1]) if np.std(abs_ret) > 1e-8 else 0.0
+    else:
+        corr = 0.0
+
+    return np.array([momentum, vol_z, vol_z2, r2, rsi_norm, corr])
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+    def __init__(self, seed: int = 42):
+        self.seed = seed
+        self.ekrls = EKRLSQuantumEngine(EKRLSConfig(
+            state_dim=4,
+            kernel_sigma=0.5,    # Tighter kernel: captures local vol clustering
+=======
+    def __init__(self, seed: int = 42):
+        self.seed = seed
+        self.ekrls = EKRLSQuantumEngine(EKRLSConfig(
+            state_dim=6,
+            kernel_sigma=0.5,    # Tighter kernel: captures local vol clustering
+>>>>>>> REPLACE

@@ -82,17 +82,17 @@ def generate_market_data(n: int = 200, seed: int = 42) -> dict:
 
 def encode_market_state(prices: np.ndarray, returns: np.ndarray,
                          vol: np.ndarray, volume: np.ndarray,
-                         i: int, lookback: int = 5) -> np.ndarray:
+                         i: int, lookback: int = 14) -> np.ndarray:
     """
-    Encode market observation into 4D quantum-style state vector Φ.
+    Encode market observation into 6D quantum-style state vector Φ.
 
-    Φ = [normalized_price_momentum, vol_z_score, volume_z_score, trend_strength]
+    Φ = [momentum, vol_z, vol_z2, trend, RSI, volatility_clustering]
     """
     if i < lookback:
-        return np.zeros(4)
+        return np.zeros(6)
 
     # Price momentum (normalized)
-    momentum = float(np.sum(returns[max(0,i-lookback):i])) / (lookback * 0.01 + 1e-8)
+    momentum = float(np.sum(returns[max(0,i-5):i])) / (5 * 0.01 + 1e-8)
     momentum = np.clip(momentum, -5, 5) / 5.0
 
     # Volatility z-score
@@ -115,7 +115,24 @@ def encode_market_state(prices: np.ndarray, returns: np.ndarray,
     else:
         r2 = 0.0
 
-    return np.array([momentum, vol_z, vol_z2, r2])
+    # RSI (Relative Strength Index) proxy
+    diffs = returns[max(0,i-lookback):i]
+    ups = diffs[diffs > 0]
+    downs = -diffs[diffs < 0]
+    avg_up = np.mean(ups) if len(ups) > 0 else 0
+    avg_down = np.mean(downs) if len(downs) > 0 else 1e-8
+    rs = avg_up / avg_down
+    rsi = 100 - (100 / (1 + rs))
+    rsi_norm = (rsi - 50) / 50.0 # Normalized [-1, 1]
+
+    # Volatility clustering (Autocorrelation of returns magnitude)
+    abs_ret = np.abs(returns[max(0,i-lookback):i])
+    if len(abs_ret) > 5:
+        corr = float(np.corrcoef(abs_ret[1:], abs_ret[:-1])[0,1]) if np.std(abs_ret) > 1e-8 else 0.0
+    else:
+        corr = 0.0
+
+    return np.array([momentum, vol_z, vol_z2, r2, rsi_norm, corr])
 
 
 class FinancialQuantumAnalyzer:
@@ -129,7 +146,7 @@ class FinancialQuantumAnalyzer:
     def __init__(self, seed: int = 42):
         self.seed = seed
         self.ekrls = EKRLSQuantumEngine(EKRLSConfig(
-            state_dim=4,
+            state_dim=6,
             kernel_sigma=0.5,    # Tighter kernel: captures local vol clustering
             forgetting_factor=0.97,
             process_noise=0.005,
@@ -311,11 +328,20 @@ import pandas as pd
 def load_kaggle_market_data(file_path: str, company: str = 'Tesla') -> dict:
     """
     Load and parse market data from Kaggle CSV.
-    file_path: path to synthetic_stock_data.csv
-    company: filter by company name
+    Supports both synthetic format and standard OHLCV Kaggle datasets.
     """
     df = pd.read_csv(file_path)
-    df = df[df['Company'] == company].sort_values('Date')
+
+    # Standardize column names (handle case sensitivity)
+    df.columns = [c.strip().capitalize() if c.lower() in ['date', 'open', 'high', 'low', 'close', 'volume'] else c for c in df.columns]
+
+    # Filter by company if column exists
+    if 'Company' in df.columns:
+        df = df[df['Company'] == company]
+
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'])
+        df = df.sort_values('Date')
 
     if df.empty:
         return generate_market_data(n=200)
@@ -329,11 +355,19 @@ def load_kaggle_market_data(file_path: str, company: str = 'Tesla') -> dict:
         for i in range(len(returns))
     ])
 
-    volume = df['Volume'].values
+    volume = df['Volume'].values if 'Volume' in df.columns else np.ones(len(prices))
 
-    # Map Trend to numeric regimes (Stable=2, Bullish=0, Bearish=4)
-    trend_map = {'Stable': 2, 'Bullish': 0, 'Bearish': 4}
-    regimes = np.array([trend_map.get(t, 2) for t in df['Trend'].values])
+    # Map Trend to numeric regimes
+    if 'Trend' in df.columns:
+        trend_map = {'Stable': 2, 'Bullish': 0, 'Bearish': 4}
+        regimes = np.array([trend_map.get(t, 2) for t in df['Trend'].values])
+    else:
+        # Calculate proxy regimes based on 5-day return
+        regimes = np.full(len(prices), 2, dtype=int) # Default to Stable
+        for i in range(6, len(prices)):
+            window_ret = float(np.sum(returns[i-6:i-1]))
+            if window_ret > 0.02: regimes[i] = 0 # Bullish
+            elif window_ret < -0.02: regimes[i] = 4 # Bearish
 
     return {
         "prices": prices,

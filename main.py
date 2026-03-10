@@ -200,7 +200,10 @@ class QuantumSpacetimeSystem:
 
         # 1. Finance (Kaggle Stock Data)
         if self.cfg.verbose: print("  → Domain: Finance (Kaggle: Tesla)")
-        kaggle_path = "./data/finance/synthetic_stock_data.csv"
+        kaggle_path = "./data/finance/kaggle/TSLA.csv"
+        if not os.path.exists(kaggle_path):
+            kaggle_path = "./data/finance/synthetic_stock_data.csv"
+
         mdata = load_kaggle_market_data(kaggle_path, company='Tesla')
 
         fin = FinancialQuantumAnalyzer(seed=self.cfg.seed)
