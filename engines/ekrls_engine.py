@@ -19,6 +19,7 @@ class EKRLSConfig:
     """Configuration for EKRLS Engine."""
     state_dim: int = 4           # Dimension of quantum state Φ
     kernel_sigma: float = 1.0    # RBF kernel bandwidth
+    adaptive_bandwidth: bool = True # Use Silverman's Rule of Thumb
     forgetting_factor: float = 0.99  # λ in recursive update (memory)
     process_noise: float = 0.01  # σ_v²
     measurement_noise: float = 0.05  # σ_w²
@@ -31,26 +32,28 @@ class RBFKernel:
     def __init__(self, sigma: float = 1.0):
         self.sigma = sigma
 
-    def __call__(self, x: np.ndarray, y: np.ndarray) -> float:
+    def __call__(self, x: np.ndarray, y: np.ndarray, sigma: Optional[float] = None) -> float:
         """Single kernel evaluation."""
         diff = x.flatten() - y.flatten()
-        return float(np.exp(-np.dot(diff, diff) / (2 * self.sigma ** 2)))
+        s = sigma if sigma is not None else self.sigma
+        return float(np.exp(-np.dot(diff, diff) / (2 * s ** 2 + 1e-12)))
 
-    def compute(self, X: np.ndarray, Y: np.ndarray) -> np.ndarray:
+    def compute(self, X: np.ndarray, Y: np.ndarray, sigma: Optional[float] = None) -> np.ndarray:
         """Vectorized kernel evaluation between two sets of vectors."""
         X = np.atleast_2d(X)
         Y = np.atleast_2d(Y)
+        s = sigma if sigma is not None else self.sigma
         # Use squared distance identity: ||x-y||² = ||x||² + ||y||² - 2x·y
         sx = np.einsum('ij,ij->i', X, X)
         sy = np.einsum('ij,ij->i', Y, Y)
         dist_sq = sx[:, np.newaxis] + sy[np.newaxis, :] - 2 * np.dot(X, Y.T)
-        return np.exp(-dist_sq / (2 * self.sigma ** 2))
+        return np.exp(-dist_sq / (2 * s ** 2 + 1e-12))
 
-    def gram_matrix(self, X: np.ndarray) -> np.ndarray:
+    def gram_matrix(self, X: np.ndarray, sigma: Optional[float] = None) -> np.ndarray:
         """Compute full Gram matrix K_{ij} = k(x_i, x_j)"""
         # Vectorized implementation for speed boost (Bolt ⚡)
         X_arr = np.array(X)
-        return self.compute(X_arr, X_arr)
+        return self.compute(X_arr, X_arr, sigma=sigma)
 
 
 @dataclass
@@ -123,12 +126,28 @@ class SquareRootEKRLS:
             x[i] = 0.0
         return R, x
 
-    def _kernel_vector(self, x_new: np.ndarray) -> np.ndarray:
+    def _get_adaptive_sigma(self) -> float:
+        """Silverman's Rule of Thumb proxy for bandwidth selection."""
+        if not self.cfg.adaptive_bandwidth or len(self._dict_X) < 10:
+            return self.cfg.kernel_sigma
+
+        X = np.array(self._dict_X)
+        # Multi-dimensional Silverman proxy: 1.06 * std * n^(-1/5)
+        # We blend with base sigma for stability
+        std = np.std(X, axis=0).mean() + 1e-8
+        n = len(X)
+        silverman = 1.06 * std * (n ** -0.2)
+
+        # Stability blend: 80% fixed, 20% adaptive to avoid aggressive variance shifts
+        sigma = 0.8 * self.cfg.kernel_sigma + 0.2 * silverman
+        return float(np.clip(sigma, 0.1, 10.0))
+
+    def _kernel_vector(self, x_new: np.ndarray, sigma: Optional[float] = None) -> np.ndarray:
         """Compute kernel vector k(x_new, x_i) for all dictionary entries (Vectorized)."""
         if not self._dict_X:
             return np.array([])
         X_dict = np.array(self._dict_X)
-        return self.kernel.compute(x_new.reshape(1, -1), X_dict).flatten()
+        return self.kernel.compute(x_new.reshape(1, -1), X_dict, sigma=sigma).flatten()
 
     def predict(self, phi_new: np.ndarray, k_vec: Optional[np.ndarray] = None) -> Tuple[float, float]:
         """
@@ -192,8 +211,9 @@ class SquareRootEKRLS:
             self.prediction_errors.append(y_n)
             return {"step": n, "d": d, "pred_error": y_n, "uncertainty": float(np.sqrt(k00))}
 
-        # --- Kernel vector for new point (Optimized: reuse _kernel_vector results) ---
-        k_full = self._kernel_vector(phi_n)
+        # --- Kernel vector for new point ---
+        current_sigma = self._get_adaptive_sigma()
+        k_full = self._kernel_vector(phi_n, sigma=current_sigma)
         k_vec = k_full[:-1]
         k_self = k_full[-1] + self.r_noise
 
@@ -234,7 +254,7 @@ class SquareRootEKRLS:
         self.prediction_errors.append(pred_error)
 
         # --- Update alpha via RKHS weight update ---
-        K = self.kernel.gram_matrix(self._dict_X)
+        K = self.kernel.gram_matrix(self._dict_X, sigma=current_sigma)
         K += self.r_noise * np.eye(d)
         try:
             self._alpha = np.linalg.solve(K, np.array(self._dict_y))

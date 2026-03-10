@@ -51,6 +51,13 @@ class SpectralBiasDetector:
     def __init__(self, condition_threshold: float = 1e6):
         self.condition_threshold = condition_threshold
         self.spectral_history = []
+        self.prev_probs: Optional[np.ndarray] = None
+
+    def _compute_kl_divergence(self, p: np.ndarray, q: np.ndarray) -> float:
+        """Kullback-Leibler divergence between two distributions."""
+        p = np.clip(p, 1e-12, 1.0)
+        q = np.clip(q, 1e-12, 1.0)
+        return float(np.sum(p * np.log(p / q)))
 
     def observe_spectrum(self, eigenvalues: np.ndarray) -> dict:
         """Analyze eigenvalues for rank collapse or ill-conditioning."""
@@ -71,10 +78,18 @@ class SpectralBiasDetector:
         elif rank_ratio < 0.3:
             status = "RANK_COLLAPSE"
 
+        # Compute surprise via KL-Divergence of normalized spectrum
+        probs = ev / (ev.sum() + 1e-12)
+        surprise = 0.0
+        if self.prev_probs is not None and len(self.prev_probs) == len(probs):
+            surprise = self._compute_kl_divergence(probs, self.prev_probs)
+        self.prev_probs = probs
+
         result = {
             "condition_number": float(cond),
             "effective_rank": int(eff_rank),
             "rank_ratio": float(rank_ratio),
+            "surprise_signal": surprise,
             "status": status
         }
         self.spectral_history.append(result)
@@ -344,10 +359,20 @@ class MetacognitiveLayer:
             alerts.append(alert)
         self.prev_entropy = entropy
 
-        # --- Spectral analysis ---
+        # --- Spectral analysis & Surprise Monitoring ---
         eigenvalues = engine_result.get("eigenvalues")
         if eigenvalues is not None:
             spec_result = self.spectral_detector.observe_spectrum(eigenvalues)
+
+            # Surprise detection
+            if spec_result["surprise_signal"] > 2.0:
+                alerts.append({
+                    "type": "RECOGNITION_SURPRISE",
+                    "surprise_value": spec_result["surprise_signal"],
+                    "severity": "HIGH",
+                    "action": "Regime shift detected; apply predictive backoff",
+                })
+
             if spec_result["status"] != "HEALTHY":
                 alerts.append({
                     "type": "SPECTRAL_INSTABILITY",

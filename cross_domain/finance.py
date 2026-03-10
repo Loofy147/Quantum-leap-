@@ -82,17 +82,17 @@ def generate_market_data(n: int = 200, seed: int = 42) -> dict:
 
 def encode_market_state(prices: np.ndarray, returns: np.ndarray,
                          vol: np.ndarray, volume: np.ndarray,
-                         i: int, lookback: int = 5) -> np.ndarray:
+                         i: int, lookback: int = 14) -> np.ndarray:
     """
-    Encode market observation into 4D quantum-style state vector Φ.
+    Encode market observation into 6D quantum-style state vector Φ.
 
-    Φ = [normalized_price_momentum, vol_z_score, volume_z_score, trend_strength]
+    Φ = [momentum, vol_z, vol_z2, trend, RSI, volatility_clustering]
     """
     if i < lookback:
-        return np.zeros(4)
+        return np.zeros(6)
 
     # Price momentum (normalized)
-    momentum = float(np.sum(returns[max(0,i-lookback):i])) / (lookback * 0.01 + 1e-8)
+    momentum = float(np.sum(returns[max(0,i-5):i])) / (5 * 0.01 + 1e-8)
     momentum = np.clip(momentum, -5, 5) / 5.0
 
     # Volatility z-score
@@ -115,7 +115,24 @@ def encode_market_state(prices: np.ndarray, returns: np.ndarray,
     else:
         r2 = 0.0
 
-    return np.array([momentum, vol_z, vol_z2, r2])
+    # RSI (Relative Strength Index) proxy
+    diffs = returns[max(0,i-lookback):i]
+    ups = diffs[diffs > 0]
+    downs = -diffs[diffs < 0]
+    avg_up = np.mean(ups) if len(ups) > 0 else 0
+    avg_down = np.mean(downs) if len(downs) > 0 else 1e-8
+    rs = avg_up / avg_down
+    rsi = 100 - (100 / (1 + rs))
+    rsi_norm = (rsi - 50) / 50.0 # Normalized [-1, 1]
+
+    # Volatility clustering (Autocorrelation of returns magnitude)
+    abs_ret = np.abs(returns[max(0,i-lookback):i])
+    if len(abs_ret) > 5:
+        corr = float(np.corrcoef(abs_ret[1:], abs_ret[:-1])[0,1]) if np.std(abs_ret) > 1e-8 else 0.0
+    else:
+        corr = 0.0
+
+    return np.array([momentum, vol_z, vol_z2, r2, rsi_norm, corr])
 
 
 class FinancialQuantumAnalyzer:
@@ -129,7 +146,7 @@ class FinancialQuantumAnalyzer:
     def __init__(self, seed: int = 42):
         self.seed = seed
         self.ekrls = EKRLSQuantumEngine(EKRLSConfig(
-            state_dim=4,
+            state_dim=6,
             kernel_sigma=0.5,    # Tighter kernel: captures local vol clustering
             forgetting_factor=0.97,
             process_noise=0.005,

@@ -13,3 +13,7 @@
 ## 2026-03-10 - Integration of Real Kaggle Market Data
 **Learning:** Real-world financial datasets (Kaggle) vary significantly in schema compared to synthetic models. Standardizing OHLCV columns and calculating proxy regimes (Bullish/Bearish) from returns ensures the system's universal applicability without requiring manual labeling.
 **Action:** Always implement robust column normalization and proxy calculation when adapting to external data sources.
+
+## 2026-03-10 - Adaptive Kernel Bandwidth & Surprise Detection
+**Learning:** Fixed kernel bandwidth fails in non-stationary environments (like stock markets). Silverman's Rule of Thumb with a stability blend (e.g., 80/20) provides the responsiveness of adaptive methods without the instability of aggressive variance shifts. Surprise metrics (KL-Divergence of spectral distributions) can predict regime shifts before error rates spike.
+**Action:** Use adaptive kernels for time-series forecasting in RKHS. Monitor the Gram matrix spectrum for "Surprise" to improve system-level metacognition.
