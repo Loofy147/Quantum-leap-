@@ -43,6 +43,43 @@ class MetacognitiveConfig:
     })
 
 
+class SpectralBiasDetector:
+    """
+    Monitors the spectral properties of the EKRLS Gram matrix.
+    Detects low-rank collapse and numerical instability.
+    """
+    def __init__(self, condition_threshold: float = 1e6):
+        self.condition_threshold = condition_threshold
+        self.spectral_history = []
+
+    def observe_spectrum(self, eigenvalues: np.ndarray) -> dict:
+        """Analyze eigenvalues for rank collapse or ill-conditioning."""
+        if len(eigenvalues) < 2:
+            return {"status": "INSUFFICIENT_DATA"}
+
+        # Sort desc
+        ev = np.sort(np.abs(eigenvalues))[::-1]
+        cond = ev[0] / (ev[-1] + 1e-12)
+
+        # Effective rank (number of eigenvalues > 1e-6 * max)
+        eff_rank = np.sum(ev > (ev[0] * 1e-6))
+        rank_ratio = eff_rank / len(ev)
+
+        status = "HEALTHY"
+        if cond > self.condition_threshold:
+            status = "ILL_CONDITIONED"
+        elif rank_ratio < 0.3:
+            status = "RANK_COLLAPSE"
+
+        result = {
+            "condition_number": float(cond),
+            "effective_rank": int(eff_rank),
+            "rank_ratio": float(rank_ratio),
+            "status": status
+        }
+        self.spectral_history.append(result)
+        return result
+
 class BiasDetector:
     """
     Detects cognitive/computational biases in quantum simulation.
@@ -255,6 +292,7 @@ class MetacognitiveLayer:
     def __init__(self, config: Optional[MetacognitiveConfig] = None):
         self.cfg = config or MetacognitiveConfig()
         self.bias_detector = BiasDetector(self.cfg)
+        self.spectral_detector = SpectralBiasDetector()
         self.q_validator = QScoreValidator(self.cfg)
 
         # Collapse tracking
@@ -305,6 +343,19 @@ class MetacognitiveLayer:
             }
             alerts.append(alert)
         self.prev_entropy = entropy
+
+        # --- Spectral analysis ---
+        eigenvalues = engine_result.get("eigenvalues")
+        if eigenvalues is not None:
+            spec_result = self.spectral_detector.observe_spectrum(eigenvalues)
+            if spec_result["status"] != "HEALTHY":
+                alerts.append({
+                    "type": "SPECTRAL_INSTABILITY",
+                    "status": spec_result["status"],
+                    "condition": spec_result["condition_number"],
+                    "severity": "MEDIUM",
+                    "action": "Increase RBF sigma or regularization"
+                })
 
         # --- Bias detection ---
         bias_result = self.bias_detector.observe(coherence, y_pred if y_pred else 0.0)
