@@ -433,6 +433,44 @@ class EntanglementBattery:
 
         return results
 
+    def infer_structural_dynamics(self, state_history: list[np.ndarray], learning_rate: float = 0.01):
+        """
+        Phase 3: Bayesian Structural Learning — التعلم الهيكلي البايزي
+        Dynamically refine structure constants from observed state transitions.
+
+        Learns the mapping between states Φ and infinitesimal generators.
+        """
+        if len(state_history) < 2:
+            return
+
+        n_gens = self.d
+        dim = self.cfg.algebra_dim
+
+        # Approximate the Jacobian of the state transition
+        # Φ_t+1 = exp(Σ g_i X_i) Φ_t
+        # For small dt, Φ_t+1 - Φ_t ≈ (Σ g_i X_i) Φ_t
+        for t in range(len(state_history) - 1):
+            phi_t = state_history[t]
+            phi_next = state_history[t+1]
+            delta_phi = phi_next - phi_t
+
+            # Predict delta_phi using current g and X
+            pred_delta = np.zeros(dim, dtype=complex)
+            for i in range(n_gens):
+                # We assume state-dependent coupling g_i
+                pred_delta += self.g[i] * (self.algebra.generators[i] @ phi_t[:dim])
+
+            error = delta_phi[:dim] - pred_delta
+
+            # Update generators X_i (Structural refinement)
+            # This is a highly simplified Bayesian update on the matrix elements
+            for i in range(n_gens):
+                update = learning_rate * np.outer(error, phi_t[:dim]) * self.g[i]
+                self.algebra.generators[i] += update
+
+        # Re-sync structure constants after refinement
+        self.algebra.structure_constants = self.algebra._compute_structure_constants()
+
     def summary(self) -> dict:
         return {
             "algebra_type": self.algebra.algebra_type,

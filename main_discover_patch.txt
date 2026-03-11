@@ -1,0 +1,24 @@
+<<<<<<< SEARCH
+        # 3. Climate
+        if self.cfg.verbose: print("  → Domain: Climate (Anomaly detection)")
+        cli = ClimateAdapter(seed=self.cfg.seed)
+        c_series = cli.generate_climate_series(n=300, seed=self.cfg.seed)
+        results["climate"] = cli.analyze(c_series)
+=======
+        # 3. Climate
+        from cross_domain.domain_adapters import load_kaggle_climate_data
+        climate_path = "./data/climate/climate_change_indicators.csv"
+
+        if os.path.exists(climate_path):
+            if self.cfg.verbose: print("  → Domain: Climate (Kaggle: Temperature Indicators)")
+            c_series = load_kaggle_climate_data(climate_path)
+            cli = ClimateAdapter(seed=self.cfg.seed)
+            results["climate"] = cli.analyze(c_series)
+            results["climate"]["source"] = "Kaggle"
+        else:
+            if self.cfg.verbose: print("  → Domain: Climate (Anomaly detection)")
+            cli = ClimateAdapter(seed=self.cfg.seed)
+            c_series = cli.generate_climate_series(n=300, seed=self.cfg.seed)
+            results["climate"] = cli.analyze(c_series)
+            results["climate"]["source"] = "Synthetic"
+>>>>>>> REPLACE
