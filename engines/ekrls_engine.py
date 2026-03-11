@@ -145,11 +145,27 @@ class SquareRootEKRLS:
         return float(np.clip(sigma, 0.1, 10.0))
 
     def _kernel_vector(self, x_new: np.ndarray, sigma: Optional[float] = None, X_dict: Optional[np.ndarray] = None) -> np.ndarray:
-        """Compute kernel vector k(x_new, x_i) for all dictionary entries (Vectorized)."""
+        """
+        Phase 3: Attention-Weighted Kernel Vector — وزن النواة بالانتباه
+        Enhances kernel evaluation using a lightweight self-attention mechanism
+        to prioritize relevant dictionary elements.
+        """
         if not self._dict_X:
             return np.array([])
+
         X_dict = X_dict if X_dict is not None else np.array(self._dict_X)
-        return self.kernel.compute(x_new.reshape(1, -1), X_dict, sigma=sigma).flatten()
+
+        # Raw RBF similarities
+        k = self.kernel.compute(x_new.reshape(1, -1), X_dict, sigma=sigma).flatten()
+
+        # Lightweight Attention (Softmax over similarities)
+        if len(k) > 1:
+            scores = k - np.max(k)
+            weights = np.exp(scores) / np.sum(np.exp(scores))
+            # Weight the kernel values by their attention scores
+            return k * weights * len(k)
+
+        return k
 
     def predict(self, phi_new: np.ndarray, k_vec: Optional[np.ndarray] = None) -> Tuple[float, float]:
         """

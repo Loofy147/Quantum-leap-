@@ -322,3 +322,45 @@ class QuantumErrorCorrector:
             ) if self.uncertainty_history else 0.0,
             "suffix_nodes": len(self.smoother.nodes),
         }
+
+class HierarchicalQuantumSmoother(QuantumSuffixSmoother):
+    """
+    Phase 3: Hierarchical (Vector-Quantized) Suffix Smoother
+    Uses K-Means centroids to discretize high-dimensional state Φ
+    before performing recursive suffix smoothing.
+    """
+    def __init__(self, config: SuffixConfig, n_clusters: int = 16):
+        super().__init__(config)
+        self.n_clusters = n_clusters
+        self.centroids = None
+
+    def fit_centroids(self, states: np.ndarray):
+        """Discretize the continuous state space into VQ symbols."""
+        from sklearn.cluster import MiniBatchKMeans
+        kmeans = MiniBatchKMeans(n_clusters=self.n_clusters, random_state=42)
+        kmeans.fit(states)
+        self.centroids = kmeans.cluster_centers_
+
+    def quantize_state(self, state: np.ndarray) -> int:
+        """Map a continuous Φ to its nearest cluster ID."""
+        if self.centroids is None:
+            return int(np.sum(state) % self.n_clusters)
+        dists = np.linalg.norm(self.centroids - state, axis=1)
+        return int(np.argmin(dists))
+
+    def train_on_states(self, state_history: list[np.ndarray], labels: list[int]):
+        """Train suffix tree using quantized state sequences."""
+        if self.centroids is None:
+            self.fit_centroids(np.array(state_history))
+
+        quantized_seq = [self.quantize_state(s) for s in state_history]
+
+        # Prepare training samples for parent train()
+        samples = []
+        W = self.cfg.max_suffix_length
+        for i in range(W, len(quantized_seq)):
+            context = tuple(quantized_seq[i-W:i])
+            label = labels[i]
+            samples.append((context, label))
+
+        return self.train(samples)

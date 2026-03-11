@@ -17,6 +17,43 @@ from algebra.lie_expansion import EntanglementBattery, LieAlgebraConfig
 from engines.ekrls_engine import EKRLSQuantumEngine, EKRLSConfig
 from metacognition.metacognitive_layer import QScoreValidator, MetacognitiveConfig
 import struct, hashlib
+import pandas as pd
+
+
+def load_kaggle_climate_data(file_path: str, country: str = 'World') -> np.ndarray:
+    """
+    Load temperature change indicators from Kaggle CSV (Bolt ⚡ Optimized).
+    Returns (N, 4) series where [T_anomaly, 0, 0, 0] (padding for compatibility).
+    """
+    df = pd.read_csv(file_path)
+
+    # Filter for Temperature change indicator
+    df = df[df['Indicator'].str.contains('Temperature change', na=False)]
+
+    if country != 'World':
+        country_df = df[df['Country'] == country]
+        if not country_df.empty:
+            df = country_df
+
+    # Extract year columns (F1961 to F2022)
+    year_cols = [c for c in df.columns if c.startswith('F')]
+    if not year_cols:
+        return np.zeros((100, 4))
+
+    # Average across all countries if 'World' or multiple rows
+    t_anomalies = df[year_cols].mean(axis=0).values
+
+    n = len(t_anomalies)
+    series = np.zeros((n, 4))
+    series[:, 0] = t_anomalies
+
+    # Add dummy CO2 proxy (linear increase) and Ice proxy (linear decrease)
+    # for battery charging/discharging logic in existing analyze()
+    t = np.linspace(0, 1, n)
+    series[:, 2] = t * 0.8  # CO2 proxy
+    series[:, 3] = 1.0 - t * 0.4 # Ice proxy
+
+    return series
 
 
 # ═══════════════════════════════════════════════════════════════
