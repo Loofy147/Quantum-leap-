@@ -18,6 +18,58 @@ from engines.ekrls_engine import EKRLSQuantumEngine, EKRLSConfig
 from metacognition.metacognitive_layer import QScoreValidator, MetacognitiveConfig
 import struct, hashlib
 import pandas as pd
+from typing import Optional, List, Tuple
+
+
+def load_kaggle_smiles_data(file_path: str) -> dict:
+    """
+    Load SMILES drug data from Kaggle (Bolt ⚡ Optimized).
+    Maps SMILES strings to quantum state fingerprints.
+    """
+    import pandas as pd
+    df = pd.read_csv(file_path)
+
+    # Filter and extract SMILES and pIC50
+    df = df[['SMILES', 'pIC50 (IC50 in microM)']].dropna()
+
+    # Ensure numeric
+    df['pIC50 (IC50 in microM)'] = pd.to_numeric(df['pIC50 (IC50 in microM)'], errors='coerce')
+    df = df.dropna()
+
+    # Classify by pIC50 (Activity Level)
+    df['class'] = ((df['pIC50 (IC50 in microM)'] - 3.0) * 1.5).clip(0, 7).astype(int)
+
+    compounds = []
+    for _, row in df.iterrows():
+        compounds.append({
+            'smiles': str(row['SMILES']),
+            'class': int(row['class']),
+            'pIC50': float(row['pIC50 (IC50 in microM)'])
+        })
+
+    return {"compounds": compounds, "source": "Kaggle:COVID-DDH"}
+
+
+def load_kaggle_snp_data(file_path: str) -> dict:
+    """
+    Load notable SNPs from Kaggle Excel (Bolt ⚡ Optimized).
+    Maps magnitude and repute to variant classes.
+    """
+    import pandas as pd
+    df = pd.read_excel(file_path)
+    df['class'] = (df['Magnitude'] // 1.5).clip(0, 7).astype(int)
+    df['syndrome'] = df['Repute'].apply(lambda x: 1 if str(x).lower() == 'bad' else 0)
+    snps = []
+    for idx, row in df.iterrows():
+        raw = str(row['Unnamed: 0'])
+        if '(' in raw:
+            rsid = raw.split('(')[0]
+            genotype = raw.split('(')[1].replace(')', '')
+            snps.append({
+                'rsid': rsid, 'genotype': genotype, 'class': int(row['class']),
+                'syndrome': int(row['syndrome']), 'summary': str(row['Summary'])
+            })
+    return {"snps": snps, "source": "Kaggle:SNPedia"}
 
 
 def load_kaggle_climate_data(file_path: str, country: str = 'World') -> np.ndarray:
@@ -358,8 +410,41 @@ class DrugDiscoveryAdapter:
         # Map to 5-dimensional discrete context
         return (ring_count % 6, hbd % 5, hba % 8, mw_bin % 5, logp_bin % 5)
 
-    def build_compound_database(self, seed: int = 42) -> dict:
-        """Simulate building a compound-target activity database."""
+    def build_compound_database(self, drug_data: Optional[dict] = None, seed: int = 42) -> dict:
+        """Build compound database from real SMILES or synthetic data."""
+        if drug_data and "compounds" in drug_data:
+            return self._build_from_real_smiles(drug_data["compounds"])
+        return self._build_synthetic(seed)
+
+    def _build_from_real_smiles(self, compounds: list) -> dict:
+        """Grounding logic for real SMILES strings."""
+        training_seqs = []
+        keys = []
+        for drug in compounds:
+            # SMILES hash for Ribbon Filter
+            h = int(hashlib.sha256(drug['smiles'].encode()).hexdigest(), 16)
+            key = struct.pack('>Q', h % (2**63))
+            keys.append(key)
+
+            # Suffix context from SMILES characters (last 5)
+            # Map chars to 0-25
+            ctx = tuple(ord(c) % 26 for c in (drug['smiles'] + 'XXXXX')[-5:])
+            training_seqs.append((ctx, drug['class']))
+
+            if drug['class'] >= 4:
+                self.binding_energy_battery.charge(0.01 * drug['pIC50'])
+
+        self.compound_index.build(keys)
+        self.activity_predictor.train(training_seqs)
+        self._built = True
+        return {
+            "compounds_indexed": len(compounds),
+            "source": "Kaggle:SMILES",
+            "binding_energy": self.binding_energy_battery.E_battery
+        }
+
+    def _build_synthetic(self, seed: int = 42) -> dict:
+        """Original synthetic builder."""
         rng = np.random.default_rng(seed)
         n = self.n_compounds
 

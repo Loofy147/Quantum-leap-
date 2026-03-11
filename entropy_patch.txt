@@ -1,0 +1,25 @@
+<<<<<<< SEARCH
+        # Compute quantum properties
+        coherence = self._compute_coherence(phi_n)
+        qs = QuantumState(
+            phi=phi_n,
+            timestamp=len(self.state_history),
+            coherence=coherence,
+            entanglement_entropy=0.0
+        )
+        qs.entanglement_entropy = qs.von_neumann_entropy()
+=======
+        # Compute quantum properties
+        coherence = self._compute_coherence(phi_n)
+
+        # Tier 2026: GPU-Accelerated Entropy
+        from engines.jax_ekrls import jax_von_neumann_entropy
+        entropy_jax = float(jax_von_neumann_entropy(jnp.array(phi_n)))
+
+        qs = QuantumState(
+            phi=phi_n,
+            timestamp=len(self.state_history),
+            coherence=coherence,
+            entanglement_entropy=entropy_jax
+        )
+>>>>>>> REPLACE
