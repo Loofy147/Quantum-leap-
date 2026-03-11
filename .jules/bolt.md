@@ -53,3 +53,9 @@
 ## 2026-03-10 - Vectorized Viterbi Trellis
 **Learning:** Standard Viterbi implementations use nested loops for transitions, which is extremely slow in Python.
 **Action:** Vectorize the trellis update using NumPy broadcasting (`(n, 1) + (n, n) + (1, n)`) to compute the entire transition matrix at once.
+
+## Phase 5 Implementation Learnings
+- **Persistence:** Using `np.savez` with `item()` for dictionary recovery is effective for RKHS state persistence.
+- **Meta-Regulation:** RKHS Curvature (second derivative of spectral entropy) provides a sensitive signal for manifold shifts.
+- **Differentiable Physics:** JAX VJP allows end-to-end refinement of Lie Algebra generators from state transition errors.
+- **Orchestration:** Phase 5 governance should be run after the main integration loop to ensure learned states are captured.

@@ -13,6 +13,8 @@ from error_correction.suffix_smoothing import QuantumErrorCorrector, SuffixConfi
 from algebra.lie_expansion import EntanglementBattery, LieAlgebraConfig
 from filters.ribbon_filter import RibbonFilter, RibbonConfig
 from metacognition.metacognitive_layer import MetacognitiveLayer, MetacognitiveConfig
+from utils.persistence import PersistenceManager
+from algebra.differentiable_physics import compute_vjp_update
 
 @dataclass
 class SystemConfig:
@@ -117,6 +119,7 @@ class QuantumSpacetimeSystem:
         if self.cfg.verbose: print(f"\n[Phase 3] INTEGRATE — Running {self.cfg.n_simulation_steps}-step simulation...")
         sim_results = self.ekrls.run_simulation(n_steps=self.cfg.n_simulation_steps, seed=self.cfg.seed)
         meta_alerts_total = 0
+        regulator_events = []
 
         from algebra.structural_learning_optax import StructuralLearner
         self.structural_learner = StructuralLearner(self.battery.d, self.cfg.state_dim)
@@ -126,11 +129,29 @@ class QuantumSpacetimeSystem:
             meta_result = self.metacog.monitor_step(result)
             meta_alerts_total += len(meta_result.get("alerts", []))
 
+            # Phase 5: Autonomous Meta-Regulation
+            curvature = self.metacog.spectral_detector.calculate_curvature()
+            q_score = self.metacog.q_validator.validation_history[-1]["q_score"] if self.metacog.q_validator.validation_history else 0.9
+            reg_result = self.metacog.regulator.adjust_configs(curvature, self.ekrls.ekrls.cfg, q_score)
+            if reg_result["adjusted"]:
+                regulator_events.append(reg_result)
+
             # Tier 2026: Optax Structural Refinement
             if i > 0 and i % 20 == 0:
                 history = [s.phi for s in self.ekrls.state_history[-20:]]
                 refined_gens = self.structural_learner.refine(history, self.battery.g)
                 if refined_gens: self.battery.algebra.generators = refined_gens
+
+            # Phase 5: Recursive Self-Correction (VJP)
+            if i > 0 and i % 10 == 0:
+                phi_t = jnp.array(self.ekrls.state_history[-2].phi)
+                phi_next = jnp.array(self.ekrls.state_history[-1].phi)
+                g_coeffs = jnp.array(self.battery.g)
+                gens = [jnp.array(gen) for gen in self.battery.algebra.generators]
+                vjp_grads = compute_vjp_update(gens, g_coeffs, phi_t, phi_next)
+                # Apply small update
+                for j in range(len(self.battery.algebra.generators)):
+                    self.battery.algebra.generators[j] -= 0.001 * np.array(vjp_grads[j])
 
             if result.get("collapse_detected") or (i % 10 == 0):
                 phi = self.ekrls.state_history[-1].phi
@@ -148,7 +169,7 @@ class QuantumSpacetimeSystem:
                     qec_result = self.qec.correct(phi)
                     if qec_result["correction_quality"] > 0.8: self.battery.charge(0.05)
 
-        return {"ekrls_summary": self.ekrls.summary(), "meta_alerts": meta_alerts_total}
+        return {"ekrls_summary": self.ekrls.summary(), "meta_alerts": meta_alerts_total, "regulator_events": len(regulator_events)}
 
     def phase_test(self) -> dict:
         if self.cfg.verbose: print("\n[Phase 4] TEST — Subsystem validation...")
@@ -165,6 +186,30 @@ class QuantumSpacetimeSystem:
         if self.cfg.verbose:
             print(f"  Q-Score: {q_result['q_validation']['q_score']:.4f} | Status: {q_result['q_validation']['recommendation']}")
         return q_result
+
+    def phase_governance(self) -> dict:
+        """Phase 5: Emergent Spacetime Autonomous Governance."""
+        if self.cfg.verbose: print("\n[Phase 5] GOVERNANCE — Spacetime Manifold Persistence...")
+
+        # Save state
+        ekrls_state = self.ekrls.ekrls.save_state()
+        lie_state = self.battery.algebra.save_state()
+
+        path = "./spacetime_manifold.npz"
+        PersistenceManager.save_system_state(path, {
+            "ekrls": ekrls_state,
+            "lie": lie_state
+        })
+
+        # Verify reload
+        loaded = PersistenceManager.load_system_state(path)
+        if loaded:
+            self.ekrls.ekrls.load_state(loaded["ekrls"].item())
+            self.battery.algebra.load_state(loaded["lie"].item())
+            if self.cfg.verbose: print(f"  ✓ Manifold persisted and reloaded from {path}")
+            return {"persistence_status": "SUCCESS", "path": path}
+
+        return {"persistence_status": "FAILED"}
 
     def phase_discover(self) -> dict:
         if self.cfg.verbose: print("\n[Phase 6] DISCOVER — Applying emergent model to Universal Kaggle Data...")
@@ -229,6 +274,7 @@ class QuantumSpacetimeSystem:
             meta_grads = jnp.array([-0.05, -0.02]) if q_score < 0.9 else jnp.zeros(2)
             updates, opt_state = optimizer.update(meta_grads, opt_state); meta_params = optax.apply_updates(meta_params, updates)
 
+        self.phase_governance()
         discover = self.phase_discover()
         self.report = {"core": {"study": study, "understand": understand, "integrate": integrate, "test": test, "validate": validate}, "discover": discover}
         try: self.report["isomorphism"] = self.phase_isomorphism()

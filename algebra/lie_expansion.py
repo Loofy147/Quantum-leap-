@@ -122,6 +122,20 @@ class LieAlgebra:
         self.structure_constants = self._compute_structure_constants()
         self._ad_cache = {}  # Cache for adjoint representations (Bolt ⚡)
 
+    def save_state(self) -> dict:
+        return {
+            "generators": np.array(self.generators),
+            "algebra_type": str(self.algebra_type),
+            "n": self.n
+        }
+
+    def load_state(self, state: dict):
+        self.generators = [g for g in state["generators"]]
+        self.algebra_type = str(state["algebra_type"])
+        self.n = int(state["n"])
+        self.structure_constants = self._compute_structure_constants()
+        self._ad_cache = {}
+
     def _build_generators(self) -> list[np.ndarray]:
         """Build basis generators for the selected algebra."""
         n = self.n
