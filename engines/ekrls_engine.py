@@ -11,6 +11,7 @@ No matrix inversion at each step → O(n²) updates, FPGA-ready.
 
 import numpy as np
 from typing import Callable, Optional, Tuple
+import scipy.linalg
 from dataclasses import dataclass, field
 
 
@@ -173,7 +174,7 @@ class SquareRootEKRLS:
 
         if self._R_sqrt is not None and len(k_vec_u) == self._R_sqrt.shape[0]:
             try:
-                v = np.linalg.solve(self._R_sqrt.T, k_vec_u)
+                v = scipy.linalg.solve_triangular(self._R_sqrt, k_vec_u, trans=1, lower=True)
                 uncertainty = float(np.sqrt(max(0, k_self - np.dot(v, v))))
             except np.linalg.LinAlgError:
                 uncertainty = float(np.sqrt(k_self))
@@ -230,7 +231,7 @@ class SquareRootEKRLS:
         # New row: [k_vec, sqrt(k_self - k_vec·inv(R^T R)·k_vec)]
         if r_old_d > 0 and len(k_vec) > 0:
             try:
-                v = np.linalg.solve(R_old.T, k_vec)
+                v = scipy.linalg.solve_triangular(R_old, k_vec, trans=1, lower=True)
                 schur = k_self - np.dot(v, v)
                 R_new[r_old_d - 1, r_old_d - 1] = np.sqrt(max(schur, 1e-10))
             except np.linalg.LinAlgError:
@@ -291,18 +292,17 @@ class EKRLSQuantumEngine:
         self.entanglement_battery: float = 1.0  # Normalized [0,1]
 
     def _compute_coherence(self, phi: np.ndarray) -> float:
-        """Coherence = normalized off-diagonal density matrix magnitude."""
-        n = len(phi)
-        if n < 2:
-            return 1.0
-        # Outer product approximation of density matrix
-        rho = np.outer(phi, phi.conj())
-        diag_sum = np.abs(np.diag(rho)).sum()
-        total_sum = np.abs(rho).sum()
-        if total_sum < 1e-12:
+        """
+        Coherence = normalized off-diagonal density matrix magnitude (Bolt ⚡ Optimized).
+        Complexity: O(d) via L1/L2 norm identity.
+        """
+        l1 = np.linalg.norm(phi, 1)
+        if l1 < 1e-12:
             return 0.0
-        off_diag = total_sum - diag_sum
-        return float(off_diag / total_sum)
+        # Normalized off-diagonal = 1 - (L2_norm^2 / L1_norm^2)
+        # Since phi is already normalized to L2=1 in step(), this simplifies.
+        l2_sq = np.sum(np.abs(phi)**2)
+        return float(max(0, 1.0 - l2_sq / (l1**2 + 1e-12)))
 
     def step(self, phi_raw: np.ndarray, measurement: float) -> dict:
         """

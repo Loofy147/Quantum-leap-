@@ -220,12 +220,22 @@ class QuantumErrorCorrector:
 
     def correct(self, phi: np.ndarray) -> dict:
         """
-        Find and apply best QEC correction for quantum state phi.
-        Returns correction report.
+        Find and apply best QEC correction for quantum state phi (Bolt ⚡ Optimized).
+        Caches distribution result to avoid redundant suffix tree traversals.
         """
         state_seq = self._discretize_state(phi.real)
-        code, confidence = self.smoother.best_correction(state_seq)
-        uncertainty = self.smoother.uncertainty(state_seq)
+
+        # Call predict_distribution once (Bolt ⚡ Optimization)
+        dist = self.smoother.predict_distribution(state_seq)
+
+        # Best correction
+        code = max(dist, key=dist.get)
+        confidence = dist[code]
+
+        # Uncertainty (Entropy) from the same distribution
+        probs = np.array(list(dist.values()))
+        probs = probs[probs > 1e-12]
+        uncertainty = float(-np.sum(probs * np.log2(probs)))
 
         self.uncertainty_history.append(uncertainty)
         self.corrections_applied += 1
@@ -260,47 +270,42 @@ class QuantumErrorCorrector:
 
     def viterbi_sequence(self, phi_sequence: list[np.ndarray]) -> list[int]:
         """
-        Viterbi decoding over a sequence of quantum states.
-        Finds globally optimal QEC code sequence using second-order Markov.
-
-        V(code, t) = max_{code'} [P(code|code', φ_t) · V(code', t-1)]
+        Viterbi decoding over a sequence of quantum states (Bolt ⚡ Optimized).
+        Uses NumPy broadcasting to vectorize the trellis update.
         """
         T = len(phi_sequence)
         n_codes = self.cfg.n_qec_codes
+
+        # Pre-calculate transition penalty matrix: penalty[c, c_prev] = -0.1 * |c - c_prev|
+        c_range = np.arange(n_codes)
+        transition_penalty = -0.1 * np.abs(c_range[:, None] - c_range[None, :])
 
         # Initialize
         V = np.full((n_codes, T), -np.inf)
         backtrack = np.zeros((n_codes, T), dtype=int)
 
-        # t=0: use emission probability only
+        # t=0
         phi0 = phi_sequence[0]
-        seq0 = self._discretize_state(phi0.real)
-        dist0 = self.smoother.predict_distribution(seq0)
-        for c in range(n_codes):
-            V[c, 0] = np.log(dist0.get(c, 1e-10) + 1e-10)
+        dist0 = self.smoother.predict_distribution(self._discretize_state(phi0.real))
+        V[:, 0] = np.log(np.array([dist0.get(c, 1e-10) for c in range(n_codes)]) + 1e-10)
 
-        # Forward pass
+        # Forward pass (vectorized inner loop)
         for t in range(1, T):
-            seq_t = self._discretize_state(phi_sequence[t].real)
-            dist_t = self.smoother.predict_distribution(seq_t)
+            dist_t = self.smoother.predict_distribution(self._discretize_state(phi_sequence[t].real))
+            p_emit = np.log(np.array([dist_t.get(c, 1e-10) for c in range(n_codes)]) + 1e-10)
 
-            for c in range(n_codes):
-                p_emit = np.log(dist_t.get(c, 1e-10) + 1e-10)
-                # Transition: penalize large code jumps
-                scores = np.array([
-                    V[c_prev, t-1] - 0.1 * abs(c - c_prev) + p_emit
-                    for c_prev in range(n_codes)
-                ])
-                best_prev = int(np.argmax(scores))
-                V[c, t] = scores[best_prev]
-                backtrack[c, t] = best_prev
+            # Matrix of potential scores: score[c, c_prev] = V[c_prev, t-1] + penalty[c, c_prev] + p_emit[c]
+            # V[:, t-1] is (n_codes,), p_emit is (n_codes,)
+            # Broad-casting: (n_codes, 1) + (n_codes, n_codes) + (n_codes, 1)
+            scores = V[None, :, t-1] + transition_penalty + p_emit[:, None]
+
+            backtrack[:, t] = np.argmax(scores, axis=1)
+            V[:, t] = np.max(scores, axis=1)
 
         # Backtrack
-        path = []
-        c = int(np.argmax(V[:, T-1]))
-        for t in range(T-1, -1, -1):
-            path.append(c)
-            c = backtrack[c, t]
+        path = [int(np.argmax(V[:, T-1]))]
+        for t in range(T-1, 0, -1):
+            path.append(int(backtrack[path[-1], t]))
         path.reverse()
         return path
 

@@ -41,3 +41,15 @@
 ## 2026-03-10 - Suffix Tree Batch Training
 **Learning:** Training the Suffix Tree node-by-node in a loop was inefficient due to repeated dictionary lookups and atomic node updates.
 **Action:** Refactored `QuantumSuffixSmoother.train` to pre-aggregate all suffix counts in the batch using a local dictionary before performing a single-pass update on the tree nodes.
+
+## 2026-03-10 - O(d) Coherence Identity
+**Learning:** Calculating coherence via the full density matrix outer product ($\rho = |\phi\rangle\langle\phi|$) is (d^2)$. For a normalized state, the normalized off-diagonal magnitude simplifies to  - \|\phi\|_2^2 / \|\phi\|_1^2$.
+**Action:** Use the L1/L2 norm identity for coherence monitoring to achieve linear (d)$ scaling with state dimension.
+
+## 2026-03-10 - Triangular Solver for EKRLS
+**Learning:** The Square Root EKRLS algorithm maintains an upper-triangular factor $. Using generic `np.linalg.solve` ((d^3)$) ignores this structure.
+**Action:** Use `scipy.linalg.solve_triangular` ((d^2)$) to leverage the triangularity of $ for significantly faster recursive updates and uncertainty predictions.
+
+## 2026-03-10 - Vectorized Viterbi Trellis
+**Learning:** Standard Viterbi implementations use nested loops for transitions, which is extremely slow in Python.
+**Action:** Vectorize the trellis update using NumPy broadcasting (`(n, 1) + (n, n) + (1, n)`) to compute the entire transition matrix at once.
