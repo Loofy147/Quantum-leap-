@@ -10,6 +10,7 @@ No matrix inversion at each step → O(n²) updates, FPGA-ready.
 """
 
 import numpy as np
+import jax.numpy as jnp
 from typing import Callable, Optional, Tuple
 import scipy.linalg
 from dataclasses import dataclass, field
@@ -336,13 +337,17 @@ class EKRLSQuantumEngine:
 
         # Compute quantum properties
         coherence = self._compute_coherence(phi_n)
+
+        # Tier 2026: GPU-Accelerated Entropy
+        from engines.jax_ekrls import jax_von_neumann_entropy
+        entropy_jax = float(jax_von_neumann_entropy(jnp.array(phi_n)))
+
         qs = QuantumState(
             phi=phi_n,
             timestamp=len(self.state_history),
             coherence=coherence,
-            entanglement_entropy=0.0
+            entanglement_entropy=entropy_jax
         )
-        qs.entanglement_entropy = qs.von_neumann_entropy()
 
         # Check for collapse BEFORE update
         if qs.is_collapsed():

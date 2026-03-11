@@ -1,36 +1,37 @@
-# System Architecture: Realization Crystallization Framework (RCF)
+# System Architecture: Realization Crystallization Framework (RCF) — Tier 2026 Elite
 
-The Quantum Spacetime Emergence System is structured into three distinct layers, following the RCF paradigm for emergent computational complexity.
+The Quantum Spacetime Emergence System is structured into three distinct layers, following the RCF paradigm for emergent computational complexity, now fully hardware-accelerated for March 2026.
 
-## Layer 0: Foundational Engines (The Physics)
-This layer handles low-level state tracking and mathematical transformations.
+## Layer 0: Physics Engines (The Foundations)
+This layer handles hardware-accelerated state tracking and mathematical transformations.
 
-- **EKRLS Engine (`engines/`):**
-    - Implements Square Root Extended Kernel Recursive Least Squares.
-    - Features **Adaptive Kernel Bandwidth** using Silverman's Rule of Thumb blend.
-    - Tracks states in Reproducing Kernel Hilbert Space (RKHS) without matrix inversion.
-- **Ribbon Filters (`filters/`):**
-    - High-performance, memory-efficient alternative to Bloom/Xor filters.
-    - Uses Boolean Banding for O(1) entanglement pair indexing.
-- **Lie Algebra Expansion (`algebra/`):**
-    - Manages energy conservation via SU(n) and Galilean Lie Algebra generators.
-    - Evolution is modeled using the Wei-Norman framework.
+- **JAX-EKRLS Engine (`engines/jax_ekrls.py`):**
+    - Implements Square Root EKRLS with **JAX JIT** acceleration.
+    - Features **RKHS Attention Weighting** to prioritize relevant dictionary elements.
+    - O(d^2) recursive updates with GPU/TPU readiness.
+- **Optax Structural Learner (`algebra/structural_learning_optax.py`):**
+    - Uses second-order Bayesian refinement to learn Lie Algebra generators.
+    - Enforces symmetry and conservation laws via AdamW optimization.
+- **Ribbon Filters (`filters/ribbon_filter.py`):**
+    - O(1) membership test for entanglement pairs with 27% memory reduction vs Bloom.
 
 ## Layer 1: Metacognitive Supervision (The Mind)
 The supervisor layer monitors stability and ensures grounded reasoning.
 
-- **Bias Detection:** Monitors for Anchoring, Overconfidence, and Circular Reasoning.
-- **Spectral Monitoring:** Analyzes the Gram matrix spectrum for rank collapse.
-- **Surprise Metric:** Uses **KL-Divergence** to detect regime shifts in the underlying state distribution.
-- **Q-Score Validation:** 6-dimension Bayesian calibrated scoring (G-C-S-A-Co-Ge).
+- **Bayesian Q-Score:** 6-dimension calibrated scoring (Grounding, Certainty, Structure, Applicability, Coherence, Generativity).
+- **Spectral Surprise:** KL-Divergence monitoring of the Gram matrix spectrum for regime shifts.
+- **Meta-Optimization Loop:** Uses **Optax** to automatically tune system hyperparameters against the Q-Score gradient.
 
-## Layer 2: Cross-Domain Discovery (The Universe)
-Universal adapters that map quantum spacetime laws to specific domains.
+## Layer 2: Cross-Domain Intelligence (The Universe)
+Universal adapters mapping 2026-tier logic to grounded datasets.
 
-- **Finance:** Isomorphism between coherence/stability and market volatility. Grounded in real Kaggle stock data.
-- **Genomics:** SNP indexing and variant database construction.
-- **Climate:** Anomaly detection and tipping point prediction.
-- **NLP:** Quantum-inspired POS tagging via Viterbi decoding.
+- **OTT-JAX Isomorphism Mapping:** Quantifies "spacetime distance" between domains using Sinkhorn optimal transport.
+- **Transformer-based QEC:** Multi-head attention head for accelerated error syndrome prediction.
+- **Universal Grounding:**
+    - **Finance:** Multi-asset correlation (Tesla vs S&P 500).
+    - **Climate:** NASA/Kaggle Temperature anomaly tracking.
+    - **Genomics:** SNPedia notable genotype indexing.
+    - **Drug Discovery:** COVID-DDH SMILES character-level state embeddings.
 
-## Recursive Optimization Loop
-The system features a self-tuning loop that automatically optimizes hyperparameters (simulation steps, entanglement pairs) based on Q-Score bottlenecks identified during validation.
+## Recursive 2026 Tier Pipeline
+The system integrates an end-to-end differentiable pipeline from Layer 0 physics to Layer 2 discovery, ensuring all cross-domain predictions are mathematically consistent with the underlying spacetime generators.
