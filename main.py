@@ -199,17 +199,30 @@ class QuantumSpacetimeSystem:
         results = {}
 
         # 1. Finance (Kaggle Stock Data)
-        if self.cfg.verbose: print("  → Domain: Finance (Kaggle: Tesla)")
-        kaggle_path = "./data/finance/kaggle/TSLA.csv"
-        if not os.path.exists(kaggle_path):
-            kaggle_path = "./data/finance/synthetic_stock_data.csv"
+        from cross_domain.finance import MultiAssetFinancialAnalyzer, load_multi_asset_data
 
-        mdata = load_kaggle_market_data(kaggle_path, company='Tesla')
+        kaggle_path_tsla = "./data/finance/kaggle/TSLA.csv"
+        kaggle_path_sp500 = "./data/finance/kaggle/sap500.csv"
 
-        fin = FinancialQuantumAnalyzer(seed=self.cfg.seed)
-        fin.analyze(mdata)
-        results["finance"] = fin.performance_summary()
-        results["finance"]["source"] = mdata.get("source", "Synthetic")
+        if os.path.exists(kaggle_path_tsla) and os.path.exists(kaggle_path_sp500):
+            if self.cfg.verbose: print("  → Domain: Multi-Asset Finance (Kaggle: Tesla vs S&P 500)")
+            mdata = load_multi_asset_data(kaggle_path_tsla, kaggle_path_sp500)
+            fin = MultiAssetFinancialAnalyzer(seed=self.cfg.seed)
+            fin.analyze(mdata)
+            results["finance"] = fin.performance_summary()
+            results["finance"]["source"] = mdata.get("source", "Kaggle")
+        else:
+            if self.cfg.verbose: print("  → Domain: Finance (Kaggle: Tesla)")
+            kaggle_path = "./data/finance/kaggle/TSLA.csv"
+            if not os.path.exists(kaggle_path):
+                kaggle_path = "./data/finance/synthetic_stock_data.csv"
+
+            mdata = load_kaggle_market_data(kaggle_path, company='Tesla')
+
+            fin = FinancialQuantumAnalyzer(seed=self.cfg.seed)
+            fin.analyze(mdata)
+            results["finance"] = fin.performance_summary()
+            results["finance"]["source"] = mdata.get("source", "Synthetic")
 
         # 2. Genomics
         if self.cfg.verbose: print("  → Domain: Genomics (SNP indexing)")

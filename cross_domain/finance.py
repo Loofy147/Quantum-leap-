@@ -136,7 +136,7 @@ def encode_market_state(prices: np.ndarray, returns: np.ndarray,
 
 
 
-def get_batch_market_features(prices, returns, vol, volume, lookback=14):
+def get_batch_market_features(prices, returns, vol, volume, lookback=14, cross_corr=None):
     """
     Vectorized extraction of market features for all time steps (Bolt ⚡ Optimized).
     Returns (N, 6) array of features.
@@ -175,29 +175,24 @@ def get_batch_market_features(prices, returns, vol, volume, lookback=14):
     rsi = 100 - (100 / (1 + rs))
     rsi_norm = ((rsi - 50) / 50.0).fillna(0).values
 
-    # 6. Volatility clustering
-    abs_ret = ret_series.abs()
-    corr = abs_ret.rolling(window=lookback).corr(abs_ret.shift(1)).fillna(0).values
+    # 6. Volatility clustering or Cross-Correlation
+    if cross_corr is not None:
+        # Use provided cross-correlation (e.g. TSLA vs S&P 500)
+        corr_val = cross_corr
+    else:
+        # Default: Volatility clustering (autocorrelation of absolute returns)
+        abs_ret = ret_series.abs()
+        corr_val = abs_ret.rolling(window=lookback).corr(abs_ret.shift(1)).fillna(0).values
 
     features = np.zeros((n, 6))
 
     # Aligning with original step logic
-    # prices: n, returns: n-1, vol: n-1, volume: n
-    # momentum, rsi, corr come from returns (n-1)
-    # vol_z comes from vol (n-1)
-    # volu_z2 comes from volume (n)
-    # r2 comes from prices (n)
-
-    # original encode_market_state(i) used returns[i-lookback:i], vol[i-lookback:i], etc.
-    # so momentum[i-1] matches sum(returns[i-5:i]).
-    # vol_z[i-1] matches mean(vol[i-W:i]).
-
     features[1:len(momentum)+1, 0] = momentum
     features[1:len(vol_z)+1, 1] = vol_z
     features[1:len(volu_z2), 2] = volu_z2[1:] # Aligning volume[i]
     features[1:len(r2), 3] = r2[1:]
     features[1:len(rsi_norm)+1, 4] = rsi_norm
-    features[1:len(corr)+1, 5] = corr
+    features[1:len(corr_val)+1, 5] = corr_val
 
     return features
 
@@ -259,7 +254,8 @@ class FinancialQuantumAnalyzer:
             self._regime_initialized = True
 
         # Batch compute all features (Bolt ⚡ Optimization)
-        all_phis = get_batch_market_features(prices, returns, vol, volume)
+        cross_corr = market_data.get("cross_corr")
+        all_phis = get_batch_market_features(prices, returns, vol, volume, cross_corr=cross_corr)
 
         vol_forecasts = []
         regime_sequence = []
@@ -396,6 +392,39 @@ class FinancialQuantumAnalyzer:
             "collapse_events": self.ekrls.summary().get("collapse_events", 0),
         }
 
+
+class MultiAssetFinancialAnalyzer(FinancialQuantumAnalyzer):
+    """
+    Analyzes multiple assets and tracks their cross-correlation as "quantum entanglement".
+    """
+    def analyze(self, market_data: dict) -> dict:
+        """Enhanced analysis with cross-correlation entanglement tracking."""
+        res = super().analyze(market_data)
+
+        # Additional multi-asset specific processing
+        if "cross_corr" in market_data:
+            cross_corrs = market_data["cross_corr"]
+            # Charge battery based on entanglement (correlation)
+            for i, corr in enumerate(cross_corrs[:len(self.results)]):
+                if abs(corr) > 0.7: # High entanglement
+                    self.liquidity_battery.charge(0.001 * abs(corr))
+                elif abs(corr) < 0.2: # Decoupling / Disentanglement
+                    self.liquidity_battery.discharge(0.002 * (1.0 - abs(corr)))
+
+            # Update results with cross-correlation
+            for i in range(len(self.results)):
+                self.results[i]["cross_correlation"] = float(cross_corrs[i])
+
+        return res
+
+    def performance_summary(self) -> dict:
+        summary = super().performance_summary()
+        if self.results and "cross_correlation" in self.results[0]:
+            corrs = [r["cross_correlation"] for r in self.results]
+            summary["mean_cross_correlation"] = round(float(np.mean(corrs)), 4)
+            summary["max_cross_correlation"] = round(float(np.max(corrs)), 4)
+        return summary
+
 import pandas as pd
 
 def load_kaggle_market_data(file_path: str, company: str = 'Tesla') -> dict:
@@ -455,4 +484,59 @@ def load_kaggle_market_data(file_path: str, company: str = 'Tesla') -> dict:
         "true_regimes": regimes,
         "n": len(prices),
         "source": f"Kaggle:{company}"
+    }
+
+
+def load_multi_asset_data(path_a: str, path_b: str, company_a: str = 'Tesla', company_b: str = 'S&P500') -> dict:
+    """
+    Load two assets and align them for cross-correlation analysis (Bolt ⚡ Optimized).
+    """
+    df_a = pd.read_csv(path_a)
+    df_b = pd.read_csv(path_b)
+
+    # Standardize column names
+    for df in [df_a, df_b]:
+        df.columns = [c.strip().capitalize() if c.lower() in ['date', 'open', 'high', 'low', 'close', 'volume'] else c for c in df.columns]
+        if 'Date' in df.columns:
+            df['Date'] = pd.to_datetime(df['Date'])
+            df.sort_values('Date', inplace=True)
+
+    # Merge on Date to align time series
+    df_merged = pd.merge(
+        df_a[['Date', 'Close', 'Volume']],
+        df_b[['Date', 'Close', 'Volume']],
+        on='Date',
+        suffixes=('_a', '_b')
+    )
+
+    if df_merged.empty:
+        return load_kaggle_market_data(path_a, company_a)
+
+    prices_a = df_merged['Close_a'].values
+    prices_b = df_merged['Close_b'].values
+
+    returns_a = np.diff(np.log(prices_a))
+    returns_b = np.diff(np.log(prices_b))
+
+    ret_a_series = pd.Series(returns_a)
+    ret_b_series = pd.Series(returns_b)
+
+    # Vectorized cross-correlation (Bolt ⚡ Optimization)
+    cross_corr = ret_a_series.rolling(window=21).corr(ret_b_series).fillna(0.0).values
+
+    # Realized volatility of asset A
+    vol_a = ret_a_series.rolling(window=21).std().fillna(0.01).values
+
+    volume_a = df_merged['Volume_a'].values
+
+    return {
+        "prices": prices_a,
+        "prices_b": prices_b,
+        "returns": returns_a,
+        "returns_b": returns_b,
+        "realized_vol": vol_a,
+        "volume": volume_a,
+        "cross_corr": cross_corr,
+        "n": len(df_merged),
+        "source": f"Multi-Asset:{company_a} vs {company_b}"
     }
