@@ -5,7 +5,7 @@ import os
 import json
 import struct
 import optax
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 from dataclasses import dataclass
 
 from engines.ekrls_engine import EKRLSQuantumEngine, EKRLSConfig
@@ -15,6 +15,11 @@ from filters.ribbon_filter import RibbonFilter, RibbonConfig
 from metacognition.metacognitive_layer import MetacognitiveLayer, MetacognitiveConfig
 from utils.persistence import PersistenceManager
 from algebra.differentiable_physics import compute_vjp_update
+
+# Phase 6: Universal Skill Crystallization
+from cross_domain.universal_solver import UniversalProblemSolver
+from cross_domain.transfer_learning import RKHSTransferLearner
+from utils.snapshots import ContextSnapshotter
 
 @dataclass
 class SystemConfig:
@@ -95,6 +100,11 @@ class QuantumSpacetimeSystem:
             q_score_minimum=0.85
         ))
 
+        # Phase 6: Crystallization Layer
+        self.universal_solver = UniversalProblemSolver()
+        self.transfer_learner = RKHSTransferLearner()
+        self.snapshotter = ContextSnapshotter()
+
     def phase_study(self) -> dict:
         if self.cfg.verbose: print("\n[Phase 1] STUDY — Building entanglement index...")
         pairs = generate_entanglement_pairs(self.cfg.n_entanglement_pairs, seed=self.cfg.seed)
@@ -168,6 +178,14 @@ class QuantumSpacetimeSystem:
                 else:
                     qec_result = self.qec.correct(phi)
                     if qec_result["correction_quality"] > 0.8: self.battery.charge(0.05)
+
+            # Phase 6: Periodic Context Snapshotting
+            if i > 0 and i % 50 == 0:
+                self.snapshotter.create_snapshot(i, {
+                    "ekrls_alpha": self.ekrls.ekrls._alpha,
+                    "battery_g": self.battery.g,
+                    "qec_clusters": self.qec_smoother.cluster_centers if hasattr(self.qec_smoother, 'cluster_centers') else None
+                })
 
         return {"ekrls_summary": self.ekrls.summary(), "meta_alerts": meta_alerts_total, "regulator_events": len(regulator_events)}
 
@@ -256,8 +274,35 @@ class QuantumSpacetimeSystem:
             l_v = f_v * 0.95 + 0.02
             dist = float(mapper.calculate_distance(f_v[:50], l_v[:50]))
             manifold = projector.project_to_manifold({"finance_real": f_v[:50], "finance_latent": l_v[:50]})
-            return {"finance_stability_distance": dist, "manifold_projection": manifold}
+            return {"finance_stability_distance": dist, "manifold_projection": manifold, "mapped_states": mapper.map_isomorphism(f_v[:10], l_v[:10])}
         return {}
+
+    def phase_crystallize(self) -> dict:
+        """Phase 6: Universal Skill Crystallization."""
+        if self.cfg.verbose: print("\n[Phase 8] CRYSTALLIZE — Universal Skill Synthesis...")
+
+        # 1. Universal Solver demonstration
+        solver_res = self.universal_solver.run_solver(
+            "My website is slow but I don't know why.",
+            ["Limited budget", "Cannot rewrite core system"]
+        )
+        if self.cfg.verbose: print(f"  → Universal Solver: {solver_res['final_solution'][:60]}...")
+
+        # 2. Cross-Domain Transfer Learning demonstration
+        transferability = 0.0
+        fin_res = self.report['discover'].get('finance', {}).get('results_list', [])
+        if len(fin_res) > 20:
+            f_v = jnp.array([[r['coherence'], r.get('anomaly_score', 0.0)] for r in fin_res])
+            l_v = f_v * 0.9 + 0.05
+            transferability = self.transfer_learner.calculate_transferability(f_v[:20], l_v[:20])
+            augmented_dict = self.transfer_learner.transfer_knowledge(f_v[:10], l_v[:20])
+            if self.cfg.verbose: print(f"  → Transferability: {transferability:.4f} | Universal Dict Size: {len(augmented_dict)}")
+
+        return {
+            "universal_solver": solver_res,
+            "transferability": transferability,
+            "snapshots_summary": self.snapshotter.summary()
+        }
 
     def run(self):
         np.random.seed(self.cfg.seed)
@@ -279,6 +324,9 @@ class QuantumSpacetimeSystem:
         self.report = {"core": {"study": study, "understand": understand, "integrate": integrate, "test": test, "validate": validate}, "discover": discover}
         try: self.report["isomorphism"] = self.phase_isomorphism()
         except Exception as e: print(f"  ! Isomorphism error: {e}")
+
+        self.report["crystallize"] = self.phase_crystallize()
+
         self.report["system_config"] = vars(self.cfg); self.report["optimized_params"] = meta_params.tolist()
         return self.report
 
@@ -291,6 +339,7 @@ if __name__ == "__main__":
             if isinstance(obj, (np.integer, jnp.integer)): return int(obj)
             if isinstance(obj, (np.floating, jnp.floating)): return float(obj)
             if isinstance(obj, (np.ndarray, jnp.ndarray)): return obj.tolist()
+            if isinstance(obj, bytes): return str(obj) # Handle snapshots
             return obj
         json.dump(report, f, indent=2, default=convert)
     print("\n✓ Comprehensive report saved to system_report.json")

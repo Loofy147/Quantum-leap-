@@ -59,3 +59,8 @@
 - **Meta-Regulation:** RKHS Curvature (second derivative of spectral entropy) provides a sensitive signal for manifold shifts.
 - **Differentiable Physics:** JAX VJP allows end-to-end refinement of Lie Algebra generators from state transition errors.
 - **Orchestration:** Phase 5 governance should be run after the main integration loop to ensure learned states are captured.
+
+## Phase 6 Implementation Learnings
+- **Universal Problem Solving:** Implementing hierarchical decomposition as a recursive traversal of ProblemNodes allows for flexible, domain-agnostic reasoning.
+- **RKHS Transfer Learning:** Using OTT-JAX to map dictionary elements between domains provides a mathematically rigorous way to augment training data with cross-domain insights.
+- **Context Snapshots:** JSON serialization with zlib compression is highly effective for maintaining long-term temporal coherence with minimal memory overhead (approx 2x compression).
