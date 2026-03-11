@@ -24,23 +24,21 @@ class SuffixConfig:
 
 
 class QuantumSuffixNode:
+    """Node in the Quantum Suffix Tree (Bolt ⚡ Optimized)."""
     """
     Node in the Quantum Suffix Tree.
     Stores probability distribution over QEC codes at this suffix level.
     """
 
-    def __init__(self, depth: int = 0):
+    def __init__(self, depth: int = 0, n_codes: int = 16):
         self.depth = depth
-        self.counts: defaultdict[int, float] = defaultdict(float)
-        self.children: dict[str, 'QuantumSuffixNode'] = {}
+        self.counts = np.zeros(n_codes, dtype=float)
         self.total: float = 0.0
-
     def observe(self, code: int, weight: float = 1.0):
         """Record observation of QEC code at this node."""
         self.counts[code] += weight
         self.total += weight
 
-    def mle_probability(self, code: int) -> float:
         """Maximum Likelihood Estimate P_ML(code | suffix)."""
         if self.total < 1e-12:
             return 0.0
@@ -67,9 +65,9 @@ class QuantumSuffixSmoother:
 
     def __init__(self, config: Optional[SuffixConfig] = None):
         self.cfg = config or SuffixConfig()
-        self.root = QuantumSuffixNode(depth=0)
-        self.nodes: dict[tuple, QuantumSuffixNode] = {}
         self.n_codes = self.cfg.n_qec_codes
+        self.root = QuantumSuffixNode(depth=0, n_codes=self.n_codes)
+        self.nodes: dict[tuple, QuantumSuffixNode] = {}
         self.training_samples: int = 0
 
         # Adaptive smoothing weights per suffix level
@@ -81,26 +79,35 @@ class QuantumSuffixSmoother:
     def _get_or_create_node(self, suffix: tuple) -> QuantumSuffixNode:
         """Get or create a suffix tree node."""
         if suffix not in self.nodes:
-            self.nodes[suffix] = QuantumSuffixNode(depth=len(suffix))
+            self.nodes[suffix] = QuantumSuffixNode(depth=len(suffix), n_codes=self.n_codes)
         return self.nodes[suffix]
 
     def train(self, sequences: list[tuple[tuple, int]]) -> dict:
         """
-        Train on (quantum_state_sequence, qec_code) pairs.
-        quantum_state_sequence: tuple of discretized state labels
-        qec_code: integer class label for the correction applied
+        Train on (quantum_state_sequence, qec_code) pairs (Bolt ⚡ Optimized).
+        Pre-aggregates suffix counts from the batch to minimize tree lookups.
         """
+        batch_counts = defaultdict(lambda: np.zeros(self.n_codes, dtype=float))
+        root_counts = np.zeros(self.n_codes, dtype=float)
+
         for state_seq, code in sequences:
             n = len(state_seq)
-            # Update all suffix nodes
+            # Pre-calculate counts for all suffixes in the batch
             for length in range(1, min(n + 1, self.cfg.max_suffix_length + 1)):
                 suffix = state_seq[max(0, n - length):]
-                node = self._get_or_create_node(suffix)
-                node.observe(code)
+                batch_counts[suffix][code] += 1.0
 
-            # Update root (empty suffix)
-            self.root.observe(code)
+            root_counts[code] += 1.0
             self.training_samples += 1
+
+        # Batch update the tree nodes
+        for suffix, counts in batch_counts.items():
+            node = self._get_or_create_node(suffix)
+            node.counts += counts
+            node.total += counts.sum()
+
+        self.root.counts += root_counts
+        self.root.total += root_counts.sum()
 
         return {
             "samples_trained": len(sequences),
@@ -108,49 +115,27 @@ class QuantumSuffixSmoother:
             "total_training_samples": self.training_samples,
         }
 
-    def predict_probability(self, state_seq: tuple, code: int) -> float:
-        """
-        Compute P(code | state_seq) using recursive suffix smoothing.
-
-        P(t | w_n) = λ · P_ML(t | w_n) + (1-λ) · P(t | w_{n-1})
-        Base:        P(t | ∅)  = 1/|T|
-
-        Returns probability in [0, 1].
-        """
+    def predict_distribution(self, state_seq: tuple) -> dict[int, float]:
+        """Return full probability distribution over all QEC codes (Bolt ⚡ Optimized)."""
         n = len(state_seq)
-
-        # Start from base case: uniform prior
-        p_current = self.root.uniform_probability(self.n_codes)
-
-        # Recursive smoothing from shortest suffix to longest
+        n_codes = self.n_codes
+        p_dist = np.full(n_codes, 1.0 / n_codes)
         for length in range(1, min(n + 1, self.cfg.max_suffix_length + 1)):
             suffix = state_seq[max(0, n - length):]
-            node = self._get_or_create_node(suffix)
+            if suffix in self.nodes:
+                node = self.nodes[suffix]
+                if node.total >= self.cfg.min_count:
+                    lam = self.lambdas[length - 1]
+                    p_mle = node.counts / node.total
+                    p_dist = lam * p_mle + (1 - lam) * p_dist
+        total = p_dist.sum()
+        if total > 1e-12: p_dist /= total
+        return {code: float(p) for code, p in enumerate(p_dist)}
 
-            lam = self.lambdas[length - 1]
-
-            if node.total >= self.cfg.min_count:
-                p_mle = node.mle_probability(code)
-                # Smooth: blend MLE with lower-order estimate
-                p_current = lam * p_mle + (1 - lam) * p_current
-            # else: skip this level — not enough data, keep p_current
-
-        return float(p_current)
-
-    def predict_distribution(self, state_seq: tuple) -> dict[int, float]:
-        """
-        Return full probability distribution over all QEC codes.
-        Returns dict {code: probability} normalized to sum=1.
-        """
-        probs = {
-            code: self.predict_probability(state_seq, code)
-            for code in range(self.n_codes)
-        }
-        total = sum(probs.values())
-        if total > 1e-12:
-            probs = {k: v / total for k, v in probs.items()}
-        return probs
-
+    def predict_probability(self, state_seq: tuple, code: int) -> float:
+        """Compute P(code | state_seq) using recursive suffix smoothing (Bolt ⚡ Optimized)."""
+        dist = self.predict_distribution(state_seq)
+        return dist.get(code, 0.0)
     def best_correction(self, state_seq: tuple) -> tuple[int, float]:
         """
         Return the most probable QEC code and its probability.
@@ -190,17 +175,18 @@ class QuantumErrorCorrector:
 
     def __init__(self, config: Optional[SuffixConfig] = None):
         self.cfg = config or SuffixConfig()
+        self.n_codes = self.cfg.n_qec_codes
         self.smoother = QuantumSuffixSmoother(config)
         self.corrections_applied: int = 0
         self.successful_corrections: int = 0
         self.uncertainty_history: list[float] = []
 
     def _discretize_state(self, phi: np.ndarray, n_bins: int = 8) -> tuple:
-        """Convert continuous quantum state to discrete symbol sequence."""
+        """Convert continuous quantum state to discrete symbol sequence (Bolt ⚡ Optimized)."""
         probs = np.abs(phi) ** 2
-        probs = probs / (probs.sum() + 1e-12)
-        bins = np.linspace(0, 1, n_bins + 1)
-        symbols = tuple(int(np.digitize(p, bins) - 1) for p in probs)
+        probs /= (probs.sum() + 1e-12)
+        # Using simple integer scaling instead of np.digitize for speed on fixed [0,1] range
+        symbols = tuple((probs * n_bins).astype(int).clip(0, n_bins - 1))
         return symbols
 
     def initialize(self, n_training: int = 1000, seed: int = 42) -> dict:
@@ -234,12 +220,22 @@ class QuantumErrorCorrector:
 
     def correct(self, phi: np.ndarray) -> dict:
         """
-        Find and apply best QEC correction for quantum state phi.
-        Returns correction report.
+        Find and apply best QEC correction for quantum state phi (Bolt ⚡ Optimized).
+        Caches distribution result to avoid redundant suffix tree traversals.
         """
         state_seq = self._discretize_state(phi.real)
-        code, confidence = self.smoother.best_correction(state_seq)
-        uncertainty = self.smoother.uncertainty(state_seq)
+
+        # Call predict_distribution once (Bolt ⚡ Optimization)
+        dist = self.smoother.predict_distribution(state_seq)
+
+        # Best correction
+        code = max(dist, key=dist.get)
+        confidence = dist[code]
+
+        # Uncertainty (Entropy) from the same distribution
+        probs = np.array(list(dist.values()))
+        probs = probs[probs > 1e-12]
+        uncertainty = float(-np.sum(probs * np.log2(probs)))
 
         self.uncertainty_history.append(uncertainty)
         self.corrections_applied += 1
@@ -274,47 +270,42 @@ class QuantumErrorCorrector:
 
     def viterbi_sequence(self, phi_sequence: list[np.ndarray]) -> list[int]:
         """
-        Viterbi decoding over a sequence of quantum states.
-        Finds globally optimal QEC code sequence using second-order Markov.
-
-        V(code, t) = max_{code'} [P(code|code', φ_t) · V(code', t-1)]
+        Viterbi decoding over a sequence of quantum states (Bolt ⚡ Optimized).
+        Uses NumPy broadcasting to vectorize the trellis update.
         """
         T = len(phi_sequence)
         n_codes = self.cfg.n_qec_codes
+
+        # Pre-calculate transition penalty matrix: penalty[c, c_prev] = -0.1 * |c - c_prev|
+        c_range = np.arange(n_codes)
+        transition_penalty = -0.1 * np.abs(c_range[:, None] - c_range[None, :])
 
         # Initialize
         V = np.full((n_codes, T), -np.inf)
         backtrack = np.zeros((n_codes, T), dtype=int)
 
-        # t=0: use emission probability only
+        # t=0
         phi0 = phi_sequence[0]
-        seq0 = self._discretize_state(phi0.real)
-        dist0 = self.smoother.predict_distribution(seq0)
-        for c in range(n_codes):
-            V[c, 0] = np.log(dist0.get(c, 1e-10) + 1e-10)
+        dist0 = self.smoother.predict_distribution(self._discretize_state(phi0.real))
+        V[:, 0] = np.log(np.array([dist0.get(c, 1e-10) for c in range(n_codes)]) + 1e-10)
 
-        # Forward pass
+        # Forward pass (vectorized inner loop)
         for t in range(1, T):
-            seq_t = self._discretize_state(phi_sequence[t].real)
-            dist_t = self.smoother.predict_distribution(seq_t)
+            dist_t = self.smoother.predict_distribution(self._discretize_state(phi_sequence[t].real))
+            p_emit = np.log(np.array([dist_t.get(c, 1e-10) for c in range(n_codes)]) + 1e-10)
 
-            for c in range(n_codes):
-                p_emit = np.log(dist_t.get(c, 1e-10) + 1e-10)
-                # Transition: penalize large code jumps
-                scores = np.array([
-                    V[c_prev, t-1] - 0.1 * abs(c - c_prev) + p_emit
-                    for c_prev in range(n_codes)
-                ])
-                best_prev = int(np.argmax(scores))
-                V[c, t] = scores[best_prev]
-                backtrack[c, t] = best_prev
+            # Matrix of potential scores: score[c, c_prev] = V[c_prev, t-1] + penalty[c, c_prev] + p_emit[c]
+            # V[:, t-1] is (n_codes,), p_emit is (n_codes,)
+            # Broad-casting: (n_codes, 1) + (n_codes, n_codes) + (n_codes, 1)
+            scores = V[None, :, t-1] + transition_penalty + p_emit[:, None]
+
+            backtrack[:, t] = np.argmax(scores, axis=1)
+            V[:, t] = np.max(scores, axis=1)
 
         # Backtrack
-        path = []
-        c = int(np.argmax(V[:, T-1]))
-        for t in range(T-1, -1, -1):
-            path.append(c)
-            c = backtrack[c, t]
+        path = [int(np.argmax(V[:, T-1]))]
+        for t in range(T-1, 0, -1):
+            path.append(int(backtrack[path[-1], t]))
         path.reverse()
         return path
 

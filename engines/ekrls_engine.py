@@ -11,6 +11,7 @@ No matrix inversion at each step → O(n²) updates, FPGA-ready.
 
 import numpy as np
 from typing import Callable, Optional, Tuple
+import scipy.linalg
 from dataclasses import dataclass, field
 
 
@@ -23,7 +24,8 @@ class EKRLSConfig:
     forgetting_factor: float = 0.99  # λ in recursive update (memory)
     process_noise: float = 0.01  # σ_v²
     measurement_noise: float = 0.05  # σ_w²
-    window_size: int = 50        # Sliding window for RKHS dict
+    window_size: int = 50
+    spectral_monitoring_interval: int = 5        # Sliding window for RKHS dict
 
 
 class RBFKernel:
@@ -52,7 +54,7 @@ class RBFKernel:
     def gram_matrix(self, X: np.ndarray, sigma: Optional[float] = None) -> np.ndarray:
         """Compute full Gram matrix K_{ij} = k(x_i, x_j)"""
         # Vectorized implementation for speed boost (Bolt ⚡)
-        X_arr = np.array(X)
+        X_arr = np.asarray(X)
         return self.compute(X_arr, X_arr, sigma=sigma)
 
 
@@ -126,12 +128,12 @@ class SquareRootEKRLS:
             x[i] = 0.0
         return R, x
 
-    def _get_adaptive_sigma(self) -> float:
+    def _get_adaptive_sigma(self, X_dict: Optional[np.ndarray] = None) -> float:
         """Silverman's Rule of Thumb proxy for bandwidth selection."""
         if not self.cfg.adaptive_bandwidth or len(self._dict_X) < 10:
             return self.cfg.kernel_sigma
 
-        X = np.array(self._dict_X)
+        X = X_dict if X_dict is not None else np.array(self._dict_X)
         # Multi-dimensional Silverman proxy: 1.06 * std * n^(-1/5)
         # We blend with base sigma for stability
         std = np.std(X, axis=0).mean() + 1e-8
@@ -142,11 +144,11 @@ class SquareRootEKRLS:
         sigma = 0.8 * self.cfg.kernel_sigma + 0.2 * silverman
         return float(np.clip(sigma, 0.1, 10.0))
 
-    def _kernel_vector(self, x_new: np.ndarray, sigma: Optional[float] = None) -> np.ndarray:
+    def _kernel_vector(self, x_new: np.ndarray, sigma: Optional[float] = None, X_dict: Optional[np.ndarray] = None) -> np.ndarray:
         """Compute kernel vector k(x_new, x_i) for all dictionary entries (Vectorized)."""
         if not self._dict_X:
             return np.array([])
-        X_dict = np.array(self._dict_X)
+        X_dict = X_dict if X_dict is not None else np.array(self._dict_X)
         return self.kernel.compute(x_new.reshape(1, -1), X_dict, sigma=sigma).flatten()
 
     def predict(self, phi_new: np.ndarray, k_vec: Optional[np.ndarray] = None) -> Tuple[float, float]:
@@ -172,7 +174,7 @@ class SquareRootEKRLS:
 
         if self._R_sqrt is not None and len(k_vec_u) == self._R_sqrt.shape[0]:
             try:
-                v = np.linalg.solve(self._R_sqrt.T, k_vec_u)
+                v = scipy.linalg.solve_triangular(self._R_sqrt, k_vec_u, trans=1, lower=True)
                 uncertainty = float(np.sqrt(max(0, k_self - np.dot(v, v))))
             except np.linalg.LinAlgError:
                 uncertainty = float(np.sqrt(k_self))
@@ -201,7 +203,9 @@ class SquareRootEKRLS:
         self._dict_X.append(phi_n.copy())
         self._dict_y.append(y_n)
 
-        d = len(self._dict_X)
+        # Convert to array once per step (Bolt ⚡ Optimization)
+        X_dict = np.array(self._dict_X)
+        d = len(X_dict)
 
         # --- Initialize if first step ---
         if d == 1:
@@ -212,8 +216,9 @@ class SquareRootEKRLS:
             return {"step": n, "d": d, "pred_error": y_n, "uncertainty": float(np.sqrt(k00))}
 
         # --- Kernel vector for new point ---
-        current_sigma = self._get_adaptive_sigma()
-        k_full = self._kernel_vector(phi_n, sigma=current_sigma)
+        # Reuse X_dict array (Bolt ⚡ Optimization)
+        current_sigma = self._get_adaptive_sigma(X_dict=X_dict)
+        k_full = self._kernel_vector(phi_n, sigma=current_sigma, X_dict=X_dict)
         k_vec = k_full[:-1]
         k_self = k_full[-1] + self.r_noise
 
@@ -226,7 +231,7 @@ class SquareRootEKRLS:
         # New row: [k_vec, sqrt(k_self - k_vec·inv(R^T R)·k_vec)]
         if r_old_d > 0 and len(k_vec) > 0:
             try:
-                v = np.linalg.solve(R_old.T, k_vec)
+                v = scipy.linalg.solve_triangular(R_old, k_vec, trans=1, lower=True)
                 schur = k_self - np.dot(v, v)
                 R_new[r_old_d - 1, r_old_d - 1] = np.sqrt(max(schur, 1e-10))
             except np.linalg.LinAlgError:
@@ -237,35 +242,28 @@ class SquareRootEKRLS:
         self._R_sqrt = R_new
 
         # --- Prediction error ---
+        # Reuse k_full from above (Bolt ⚡ Optimization)
         y_pred, uncertainty = self.predict(phi_n, k_vec=k_full)
-        # Re-compute before alpha update (using old alpha on new dict)
-        if self._alpha is not None and len(self._alpha) < d:
-            alpha_ext = np.append(self._alpha, 0.0)
-        else:
-            alpha_ext = self._alpha if self._alpha is not None else np.zeros(d)
-
-        k_full = self._kernel_vector(phi_n)
-        if len(k_full) == len(alpha_ext):
-            y_pred = float(np.dot(alpha_ext, k_full))
-        else:
-            y_pred = 0.0
-
         pred_error = y_n - y_pred
         self.prediction_errors.append(pred_error)
 
         # --- Update alpha via RKHS weight update ---
-        K = self.kernel.gram_matrix(self._dict_X, sigma=current_sigma)
+        # Reuse X_dict array (Bolt ⚡ Optimization)
+        K = self.kernel.gram_matrix(X_dict, sigma=current_sigma)
         K += self.r_noise * np.eye(d)
         try:
             self._alpha = np.linalg.solve(K, np.array(self._dict_y))
         except np.linalg.LinAlgError:
             self._alpha = np.linalg.lstsq(K, np.array(self._dict_y), rcond=None)[0]
 
-        # Compute eigenvalues for spectral monitoring
-        try:
-            eigenvalues = np.linalg.eigvalsh(K)
-        except:
-            eigenvalues = np.zeros(d)
+        # Compute eigenvalues for spectral monitoring periodically (Bolt ⚡ Optimization)
+        if self.update_count % self.cfg.spectral_monitoring_interval == 0:
+            try:
+                eigenvalues = np.linalg.eigvalsh(K)
+            except:
+                eigenvalues = np.zeros(d)
+        else:
+            eigenvalues = None
 
         return {
             "step": n,
@@ -294,18 +292,17 @@ class EKRLSQuantumEngine:
         self.entanglement_battery: float = 1.0  # Normalized [0,1]
 
     def _compute_coherence(self, phi: np.ndarray) -> float:
-        """Coherence = normalized off-diagonal density matrix magnitude."""
-        n = len(phi)
-        if n < 2:
-            return 1.0
-        # Outer product approximation of density matrix
-        rho = np.outer(phi, phi.conj())
-        diag_sum = np.abs(np.diag(rho)).sum()
-        total_sum = np.abs(rho).sum()
-        if total_sum < 1e-12:
+        """
+        Coherence = normalized off-diagonal density matrix magnitude (Bolt ⚡ Optimized).
+        Complexity: O(d) via L1/L2 norm identity.
+        """
+        l1 = np.linalg.norm(phi, 1)
+        if l1 < 1e-12:
             return 0.0
-        off_diag = total_sum - diag_sum
-        return float(off_diag / total_sum)
+        # Normalized off-diagonal = 1 - (L2_norm^2 / L1_norm^2)
+        # Since phi is already normalized to L2=1 in step(), this simplifies.
+        l2_sq = np.sum(np.abs(phi)**2)
+        return float(max(0, 1.0 - l2_sq / (l1**2 + 1e-12)))
 
     def step(self, phi_raw: np.ndarray, measurement: float) -> dict:
         """

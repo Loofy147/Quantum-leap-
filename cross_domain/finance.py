@@ -135,6 +135,73 @@ def encode_market_state(prices: np.ndarray, returns: np.ndarray,
     return np.array([momentum, vol_z, vol_z2, r2, rsi_norm, corr])
 
 
+
+def get_batch_market_features(prices, returns, vol, volume, lookback=14):
+    """
+    Vectorized extraction of market features for all time steps (Bolt ⚡ Optimized).
+    Returns (N, 6) array of features.
+    """
+    import pandas as pd
+    n = len(prices)
+    ret_series = pd.Series(returns)
+    vol_series = pd.Series(vol)
+    volu_series = pd.Series(volume)
+    price_series = pd.Series(prices)
+
+    # 1. Momentum (5-day)
+    mom = ret_series.rolling(window=5).sum() / (5 * 0.01 + 1e-8)
+    momentum = (np.clip(mom, -5, 5) / 5.0).fillna(0).values
+
+    # 2. Volatility z-score
+    vol_m = vol_series.rolling(window=lookback).mean()
+    vol_s = vol_series.rolling(window=lookback).std() + 1e-8
+    vol_z = (np.clip((vol_series - vol_m) / vol_s, -3, 3) / 3.0).fillna(0).values
+
+    # 3. Volume z-score
+    volu_m = volu_series.rolling(window=lookback).mean()
+    volu_s = volu_series.rolling(window=lookback).std() + 1e-8
+    volu_z2 = (np.clip((volu_series - volu_m) / volu_s, -3, 3) / 3.0).fillna(0).values
+
+    # 4. Trend strength (R2) via correlation squared
+    r = price_series.rolling(window=lookback).corr(pd.Series(np.arange(n)))
+    r2 = (r**2).fillna(0).values
+
+    # 5. RSI proxy
+    ups = ret_series.clip(lower=0)
+    downs = (-ret_series).clip(lower=0)
+    avg_up = ups.rolling(window=lookback).mean()
+    avg_down = downs.rolling(window=lookback).mean() + 1e-8
+    rs = avg_up / avg_down
+    rsi = 100 - (100 / (1 + rs))
+    rsi_norm = ((rsi - 50) / 50.0).fillna(0).values
+
+    # 6. Volatility clustering
+    abs_ret = ret_series.abs()
+    corr = abs_ret.rolling(window=lookback).corr(abs_ret.shift(1)).fillna(0).values
+
+    features = np.zeros((n, 6))
+
+    # Aligning with original step logic
+    # prices: n, returns: n-1, vol: n-1, volume: n
+    # momentum, rsi, corr come from returns (n-1)
+    # vol_z comes from vol (n-1)
+    # volu_z2 comes from volume (n)
+    # r2 comes from prices (n)
+
+    # original encode_market_state(i) used returns[i-lookback:i], vol[i-lookback:i], etc.
+    # so momentum[i-1] matches sum(returns[i-5:i]).
+    # vol_z[i-1] matches mean(vol[i-W:i]).
+
+    features[1:len(momentum)+1, 0] = momentum
+    features[1:len(vol_z)+1, 1] = vol_z
+    features[1:len(volu_z2), 2] = volu_z2[1:] # Aligning volume[i]
+    features[1:len(r2), 3] = r2[1:]
+    features[1:len(rsi_norm)+1, 4] = rsi_norm
+    features[1:len(corr)+1, 5] = corr
+
+    return features
+
+
 class FinancialQuantumAnalyzer:
     """
     Quantum-inspired financial analysis engine.
@@ -165,6 +232,7 @@ class FinancialQuantumAnalyzer:
             coherence_collapse_threshold=0.15,
         ))
         self.results: list[dict] = []
+        self._regime_initialized = False
 
     def _vol_from_coherence(self, coherence: float, base_vol: float) -> float:
         """
@@ -177,7 +245,7 @@ class FinancialQuantumAnalyzer:
         return float(base_vol * vol_multiplier)
 
     def analyze(self, market_data: dict) -> dict:
-        """Run full analysis on market data."""
+        """Run full analysis on market data (Bolt ⚡ Optimized)."""
         prices = market_data["prices"]
         returns = market_data["returns"]
         vol = market_data["realized_vol"]
@@ -185,7 +253,13 @@ class FinancialQuantumAnalyzer:
         n = market_data["n"]
 
         # Initialize regime detector
-        self.regime_detector.initialize(n_training=400, seed=self.seed)
+        # Initialize regime detector once (Bolt ⚡ Optimization)
+        if not self._regime_initialized:
+            self.regime_detector.initialize(n_training=400, seed=self.seed)
+            self._regime_initialized = True
+
+        # Batch compute all features (Bolt ⚡ Optimization)
+        all_phis = get_batch_market_features(prices, returns, vol, volume)
 
         vol_forecasts = []
         regime_sequence = []
@@ -194,8 +268,8 @@ class FinancialQuantumAnalyzer:
         signals = []
 
         for i in range(1, min(n-1, len(returns)+1)):
-            # Encode market state as quantum state Φ
-            phi = encode_market_state(prices, returns, vol, volume, i)
+            # Use pre-computed Φ
+            phi = all_phis[i]
             # Measurement = realized return at this step
             measurement = float(returns[i-1]) if i-1 < len(returns) else 0.0
 
@@ -262,7 +336,6 @@ class FinancialQuantumAnalyzer:
             "anomaly_scores": anomaly_scores,
             "signals": signals,
         }
-
     def _generate_signal(self, momentum: float, vol_z: float,
                          coherence: float, regime: int,
                          battery: float, confidence: float) -> dict:
@@ -327,7 +400,7 @@ import pandas as pd
 
 def load_kaggle_market_data(file_path: str, company: str = 'Tesla') -> dict:
     """
-    Load and parse market data from Kaggle CSV.
+    Load and parse market data from Kaggle CSV (Bolt ⚡ Optimized).
     Supports both synthetic format and standard OHLCV Kaggle datasets.
     """
     df = pd.read_csv(file_path)
@@ -348,12 +421,10 @@ def load_kaggle_market_data(file_path: str, company: str = 'Tesla') -> dict:
 
     prices = df['Close'].values
     returns = np.diff(np.log(prices))
+    returns_series = pd.Series(returns)
 
-    # Simple realized volatility (20-day window)
-    vol = np.array([
-        float(np.std(returns[max(0,i-20):i+1])) if i > 0 else 0.01
-        for i in range(len(returns))
-    ])
+    # Vectorized realized volatility (Bolt ⚡ Optimization)
+    vol = returns_series.rolling(window=21, min_periods=1).std().fillna(0.01).values
 
     volume = df['Volume'].values if 'Volume' in df.columns else np.ones(len(prices))
 
@@ -362,12 +433,19 @@ def load_kaggle_market_data(file_path: str, company: str = 'Tesla') -> dict:
         trend_map = {'Stable': 2, 'Bullish': 0, 'Bearish': 4}
         regimes = np.array([trend_map.get(t, 2) for t in df['Trend'].values])
     else:
-        # Calculate proxy regimes based on 5-day return
-        regimes = np.full(len(prices), 2, dtype=int) # Default to Stable
-        for i in range(6, len(prices)):
-            window_ret = float(np.sum(returns[i-6:i-1]))
-            if window_ret > 0.02: regimes[i] = 0 # Bullish
-            elif window_ret < -0.02: regimes[i] = 4 # Bearish
+        # Vectorized proxy regimes (Bolt ⚡ Optimization)
+        # Using 5-day rolling sum to determine regimes
+        rolling_ret_5 = returns_series.rolling(window=5).sum()
+        regimes = np.full(len(prices), 2, dtype=int)
+
+        # Shift and mask for alignment (original loop started at i=6)
+        # We start from the index 5 of returns_series (which corresponds to 6th price)
+        mask_bull = (rolling_ret_5 > 0.02).values
+        mask_bear = (rolling_ret_5 < -0.02).values
+
+        # Align masks with prices array (prices is 1 element longer than returns)
+        regimes[1:][mask_bull] = 0
+        regimes[1:][mask_bear] = 4
 
     return {
         "prices": prices,
