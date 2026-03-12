@@ -23,7 +23,7 @@ from utils.snapshots import ContextSnapshotter
 
 @dataclass
 class SystemConfig:
-    n_simulation_steps: int = 200
+    n_simulation_steps: int = 1000
     n_entanglement_pairs: int = 5000
     state_dim: int = 6
     seed: int = 42
@@ -332,7 +332,7 @@ class QuantumSpacetimeSystem:
 
 if __name__ == "__main__":
     os.makedirs("./data/finance", exist_ok=True)
-    system = QuantumSpacetimeSystem(SystemConfig(n_simulation_steps=100, n_entanglement_pairs=2000, verbose=True))
+    system = QuantumSpacetimeSystem(SystemConfig(n_simulation_steps=1000, n_entanglement_pairs=2000, verbose=True))
     report = system.run()
     with open("./system_report.json", "w") as f:
         def convert(obj):
