@@ -4,35 +4,23 @@ An integrated quantum-inspired computational framework for modeling emergent spa
 
 **Current Status:** Platinum Grade (Tier 2027 Elite). Featuring JAX-accelerated physics, Universal Problem Solving, and Cross-Domain RKHS Transfer Learning.
 
-## 🌌 System Architecture (RCF)
+## 🌌 Exact Purpose: The Meta-Intelligence Layer
+RCF is designed to govern and stabilize complex, non-linear systems. It maps data from any domain (Finance, Genomics, Climate) into a shared Spacetime manifold to uncover hidden symmetries and prevent system collapse.
 
-The system is organized into a three-layer **Realization Crystallization Framework**:
-
-### Layer 0: Foundational & Universal Engines
-- **JAX-EKRLS Engine:** Real-time state tracking in RKHS with hardware acceleration.
+## 🚀 Key Capabilities
+- **Autonomous Governance:** Self-regulating parameters based on RKHS manifold curvature.
 - **Universal Problem Solver:** Domain-invariant hierarchical reasoning and decomposition.
-- **Lie Algebra Expansion:** Energy conservation modeling via Optax-refined generators.
-- **Ribbon Filters:** O(1) memory-optimized entanglement indexing.
-
-### Layer 1: Metacognitive Governance
-- **Autonomous Meta-Regulator:** Dynamic hyperparameter tuning based on **RKHS Curvature**.
-- **Recursive Self-Correction:** VJP-based refinement of physical spacetime generators.
-- **Bayesian Q-Score:** 6-dimension calibrated scoring (Platinum Grade).
-- **Spectral Surprise:** KL-Divergence monitoring of the Gram matrix.
-
-### Layer 2: Universal Discovery & Transfer
-- **RKHS Transfer Learner:** Cross-domain knowledge mapping using **OTT-JAX**.
-- **Transformer QEC:** Multi-head attention for emergent error syndrome prediction.
-- **Universal Grounding:** Grounded in Finance (Tesla/S&P 500), Climate (NASA Temp), Genomics (SNPedia), and Drug Discovery (SMILES).
+- **Cross-Domain Transfer:** Structural knowledge mapping between disparate datasets using Optimal Transport.
+- **Differentiable Physics:** End-to-end gradient refinement of infinitesimal spacetime generators.
 
 ## 📚 Documentation
-- [Architecture Details](docs/ARCHITECTURE.md)
-- [Theoretical Research Paper](docs/RESEARCH_PAPER.md)
-- [Current System State & Q-Scores](docs/CURRENT_STATE.md)
-- [Performance Validation Report](docs/PERFORMANCE_VALIDATION.md)
-- [Project Roadmap](docs/ROADMAP.md)
+- [**Mission & Use Cases**](docs/MISSION_AND_USE_CASES.md) — *Why* and *What for*.
+- [**User Guide**](docs/USER_GUIDE.md) — *How* to use the system and API.
+- [**Research Paper**](docs/RESEARCH_PAPER.md) — Mathematical and theoretical foundations.
+- [**Architecture Details**](docs/ARCHITECTURE.md) — Deep dive into the 3-layer RCF model.
+- [**Project Roadmap**](docs/ROADMAP.md) — Future phases (Multi-Agent, Hardware).
 
-## 🚀 Getting Started
+## 🛠️ Getting Started
 
 ### Prerequisites
 - Python 3.12+
@@ -42,14 +30,6 @@ The system is organized into a three-layer **Realization Crystallization Framewo
 ```bash
 export PYTHONPATH=.
 python3 main.py
-```
-This executes the Platinum-tier pipeline, demonstrating autonomous governance and universal crystallization.
-
-### Running Tests
-```bash
-python3 test_all.py
-python3 tests/test_phase5.py
-python3 tests/test_phase6.py
 ```
 
 ## 📜 Theoretical Foundation
