@@ -51,6 +51,7 @@ class SpectralBiasDetector:
     def __init__(self, condition_threshold: float = 1e6):
         self.condition_threshold = condition_threshold
         self.spectral_history = []
+        self.entropy_history = []
         self.prev_probs: Optional[np.ndarray] = None
 
     def _compute_kl_divergence(self, p: np.ndarray, q: np.ndarray) -> float:
@@ -80,6 +81,11 @@ class SpectralBiasDetector:
 
         # Compute surprise via KL-Divergence of normalized spectrum
         probs = ev / (ev.sum() + 1e-12)
+
+        # Phase 5: Spectral Entropy tracking
+        entropy = -np.sum(probs * np.log(probs + 1e-12))
+        self.entropy_history.append(float(entropy))
+
         surprise = 0.0
         if self.prev_probs is not None and len(self.prev_probs) == len(probs):
             surprise = self._compute_kl_divergence(probs, self.prev_probs)
@@ -90,10 +96,55 @@ class SpectralBiasDetector:
             "effective_rank": int(eff_rank),
             "rank_ratio": float(rank_ratio),
             "surprise_signal": surprise,
-            "status": status
+            "status": status,
+            "spectral_entropy": float(entropy)
         }
         self.spectral_history.append(result)
         return result
+
+    def calculate_curvature(self) -> float:
+        """
+        Phase 5: RKHS Curvature calculation.
+        Measures acceleration of spectral entropy shift.
+        """
+        if len(self.entropy_history) < 3:
+            return 0.0
+        h1, h2, h3 = self.entropy_history[-3:]
+        # Second difference approx
+        curvature = abs(h3 - 2*h2 + h1)
+        return float(curvature)
+
+class AutonomousRegulator:
+    """
+    Tier 2026: Autonomous Meta-Regulation.
+    Dynamically adjusts EKRLS parameters based on RKHS curvature and Q-Score.
+    """
+    def __init__(self, curvature_threshold: float = 0.05):
+        self.curvature_threshold = curvature_threshold
+        self.adjustments_made = 0
+
+    def adjust_configs(self, curvature: float, config, q_score: float) -> dict:
+        """Adjusts EKRLS parameters to maintain stability."""
+        prev_sigma = config.kernel_sigma
+        prev_lam = config.forgetting_factor
+
+        if curvature > self.curvature_threshold:
+            # Manifold is shifting rapidly -> Increase bandwidth and adaptation
+            config.kernel_sigma = float(np.clip(config.kernel_sigma * 1.1, 0.5, 5.0))
+            config.forgetting_factor = float(np.clip(config.forgetting_factor * 0.99, 0.8, 0.999))
+            self.adjustments_made += 1
+        elif q_score < 0.8:
+            # Low grounding -> Increase bandwidth to capture more features
+            config.kernel_sigma = float(np.clip(config.kernel_sigma * 1.05, 0.5, 5.0))
+
+        return {
+            "curvature": curvature,
+            "prev_sigma": prev_sigma,
+            "new_sigma": config.kernel_sigma,
+            "prev_lam": prev_lam,
+            "new_lam": config.forgetting_factor,
+            "adjusted": config.kernel_sigma != prev_sigma or config.forgetting_factor != prev_lam
+        }
 
 class BiasDetector:
     """
@@ -301,6 +352,7 @@ class MetacognitiveLayer:
         self.bias_detector = BiasDetector(self.cfg)
         self.spectral_detector = SpectralBiasDetector()
         self.q_validator = QScoreValidator(self.cfg)
+        self.regulator = AutonomousRegulator()
 
         # Collapse tracking
         self.collapse_alerts: list[dict] = []

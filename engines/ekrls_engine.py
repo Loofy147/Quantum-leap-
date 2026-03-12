@@ -106,6 +106,22 @@ class SquareRootEKRLS:
         self.update_count = 0
         self.prediction_errors: list[float] = []
 
+    def save_state(self) -> dict:
+        return {
+            "_dict_X": np.array(self._dict_X),
+            "_dict_y": np.array(self._dict_y),
+            "_R_sqrt": self._R_sqrt,
+            "_alpha": self._alpha,
+            "update_count": self.update_count
+        }
+
+    def load_state(self, state: dict):
+        self._dict_X = [x for x in state["_dict_X"]]
+        self._dict_y = [y for y in state["_dict_y"]]
+        self._R_sqrt = state["_R_sqrt"]
+        self._alpha = state["_alpha"]
+        self.update_count = int(state["update_count"])
+
     def _givens_rotation(self, R: np.ndarray, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
         Givens rotation update: annihilate subdiagonal using plane rotations.

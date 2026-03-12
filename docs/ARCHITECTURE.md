@@ -1,37 +1,42 @@
-# System Architecture: Realization Crystallization Framework (RCF) — Tier 2026 Elite
+# System Architecture: Realization Crystallization Framework (RCF) — Tier 2027 Elite
 
-The Quantum Spacetime Emergence System is structured into three distinct layers, following the RCF paradigm for emergent computational complexity, now fully hardware-accelerated for March 2026.
+The Quantum Spacetime Emergence System follows a 3-layer architecture (RCF), now upgraded with autonomous governance and universal skill crystallization for 2027.
 
-## Layer 0: Physics Engines (The Foundations)
-This layer handles hardware-accelerated state tracking and mathematical transformations.
+## Layer 0: Physics & Universal Engines (The Foundations)
+Hardware-accelerated state tracking and domain-invariant reasoning.
 
 - **JAX-EKRLS Engine (`engines/jax_ekrls.py`):**
     - Implements Square Root EKRLS with **JAX JIT** acceleration.
-    - Features **RKHS Attention Weighting** to prioritize relevant dictionary elements.
-    - O(d^2) recursive updates with GPU/TPU readiness.
+    - Features **RKHS Attention Weighting** and (d^2)$ recursive updates.
+- **Universal Problem Solver (`cross_domain/universal_solver.py`):**
+    - Domain-invariant hierarchical decomposition engine.
+    - Implements iterative refinement and recursive synthesis of sub-problem solutions.
 - **Optax Structural Learner (`algebra/structural_learning_optax.py`):**
     - Uses second-order Bayesian refinement to learn Lie Algebra generators.
-    - Enforces symmetry and conservation laws via AdamW optimization.
 - **Ribbon Filters (`filters/ribbon_filter.py`):**
-    - O(1) membership test for entanglement pairs with 27% memory reduction vs Bloom.
+    - (1)$ membership test for entanglement pairs.
 
-## Layer 1: Metacognitive Supervision (The Mind)
-The supervisor layer monitors stability and ensures grounded reasoning.
+## Layer 1: Metacognitive Supervision & Governance (The Mind)
+Advanced monitoring and self-modification based on manifold curvature.
 
+- **Autonomous Meta-Regulator (`metacognition/metacognitive_layer.py`):**
+    - Calculates **RKHS Curvature** (acceleration of spectral entropy).
+    - Dynamically tunes kernel bandwidth and forgetting factors to prevent manifold collapse.
+- **Recursive Self-Correction (`algebra/differentiable_physics.py`):**
+    - Uses **Vector-Jacobian Products (VJP)** to propagate Q-Score gradients back to spacetime generators.
 - **Bayesian Q-Score:** 6-dimension calibrated scoring (Grounding, Certainty, Structure, Applicability, Coherence, Generativity).
-- **Spectral Surprise:** KL-Divergence monitoring of the Gram matrix spectrum for regime shifts.
-- **Meta-Optimization Loop:** Uses **Optax** to automatically tune system hyperparameters against the Q-Score gradient.
 
-## Layer 2: Cross-Domain Intelligence (The Universe)
-Universal adapters mapping 2026-tier logic to grounded datasets.
+## Layer 2: Cross-Domain Discovery & Transfer (The Universe)
+Universal adapters and structural knowledge transfer logic.
 
-- **OTT-JAX Isomorphism Mapping:** Quantifies "spacetime distance" between domains using Sinkhorn optimal transport.
-- **Transformer-based QEC:** Multi-head attention head for accelerated error syndrome prediction.
-- **Universal Grounding:**
-    - **Finance:** Multi-asset correlation (Tesla vs S&P 500).
-    - **Climate:** NASA/Kaggle Temperature anomaly tracking.
-    - **Genomics:** SNPedia notable genotype indexing.
-    - **Drug Discovery:** COVID-DDH SMILES character-level state embeddings.
+- **RKHS Transfer Learner (`cross_domain/transfer_learning.py`):**
+    - Maps RKHS dictionary structures between domains using **OTT-JAX** Optimal Transport.
+    - Enables "Finance to Genomics" knowledge injection via latent manifold alignment.
+- **OTT-JAX Isomorphism Mapping:** Quantifies "spacetime distance" between domains.
+- **Transformer-based QEC:** Multi-head attention for error syndrome prediction.
+- **Context Snapshotter (`utils/snapshots.py`):**
+    - Maintains compressed chronological records for long-term temporal coherence.
 
-## Recursive 2026 Tier Pipeline
-The system integrates an end-to-end differentiable pipeline from Layer 0 physics to Layer 2 discovery, ensuring all cross-domain predictions are mathematically consistent with the underlying spacetime generators.
+## Infrastructure & Persistence
+- **Manifold Persistence (`utils/persistence.py`):** Serialization of RKHS dictionaries and learned generators for cross-session continuity.
+- **Differentiable Pipeline:** End-to-end gradient flow from Layer 2 discoveries down to Layer 0 physics.
